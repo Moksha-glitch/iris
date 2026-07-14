@@ -104,7 +104,7 @@ export default function IntelligenceTable({ activeNodeId, onNodeClick, queriedNo
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {queriedNodeIds.map((id, idx) => (
-              <div key={idx} ref={idx === queriedNodeIds.length - 1 ? bottomRef : null}>
+              <div key={id} id={`chat-insight-${id}`} ref={idx === queriedNodeIds.length - 1 ? bottomRef : null}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <h3 style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Chat Insight: {id}</h3>
                   <button className="ti-btn" style={{ background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border)' }} onClick={() => alert('Exporting chat insight...')}>Export Insight</button>

@@ -49,7 +49,16 @@ export default function App() {
     }
     
     if (newId) {
-      setQueriedNodeIds(prev => [...prev, newId]);
+      setQueriedNodeIds(prev => {
+        if (prev.includes(newId)) {
+          return prev;
+        }
+        return [...prev, newId];
+      });
+      setTimeout(() => {
+        const el = document.getElementById(`chat-insight-${newId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }
   };
 
