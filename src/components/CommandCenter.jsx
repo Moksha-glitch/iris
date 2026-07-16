@@ -247,10 +247,39 @@ export default function CommandCenter({ isActive, onInvestigate, persona, setPer
       <header className="cc-header">
         <div className="cc-title">
           <h1>REHRIG DECISION INTELLIGENCE</h1>
-          <div className="user-role">
+          <div className="user-role" style={{
+            position: 'relative',
+            background: 'var(--surface)',
+            padding: '4px 8px',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
+            marginTop: '8px'
+          }}>
+            <div style={{ 
+              position: 'absolute', 
+              top: '-7px', 
+              left: '8px', 
+              background: 'var(--bg)', 
+              padding: '0 4px', 
+              fontSize: '9px', 
+              fontWeight: 600, 
+              color: 'var(--text-muted)',
+              letterSpacing: '0.5px'
+            }}>
+              PERSONA SIMULATOR
+            </div>
             <select 
               className="cc-select" 
-              style={{marginTop: '8px', border: 'none', background: 'transparent', paddingLeft: 0, fontWeight: 600}} 
+              style={{
+                border: 'none', 
+                background: 'transparent', 
+                paddingLeft: 0, 
+                fontWeight: 600,
+                color: 'var(--text-main)',
+                outline: 'none',
+                width: '100%',
+                cursor: 'pointer'
+              }} 
               value={persona} 
               onChange={(e) => setPersona(e.target.value)}
             >
@@ -321,28 +350,36 @@ export default function CommandCenter({ isActive, onInvestigate, persona, setPer
       {persona === 'manager' && (
         <>
           <div className="cc-grid-top">
+            <ManagerTriage onInvestigate={onInvestigate} resolvedNodes={resolvedNodes} />
             <AssetManagement mult={mult} />
-            <CasesSummary mult={mult} />
           </div>
           <div className="cc-grid-3col" style={{marginTop: '24px'}}>
-            <ManagerTriage onInvestigate={onInvestigate} resolvedNodes={resolvedNodes} />
             <LiftSummary mult={mult} />
+            <CasesSummary mult={mult} />
             <RouteSummary mult={mult} />
+          </div>
+          <div style={{marginTop: '24px', display: 'flex'}}>
+            <GanttChart />
           </div>
         </>
       )}
 
       {/* Analyst Layout */}
       {persona === 'analyst' && (
-        <div style={{display: 'flex', gap: '24px'}}>
-          <div style={{flex: 2, display: 'flex', flexDirection: 'column'}}>
-            <GanttChart />
-          </div>
-          <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: '24px'}}>
+        <>
+          <div className="cc-grid-top">
             <AnalystTriage onInvestigate={onInvestigate} resolvedNodes={resolvedNodes} />
             <RouteSummary mult={mult} />
           </div>
-        </div>
+          <div className="cc-grid-3col" style={{marginTop: '24px'}}>
+            <LiftSummary mult={mult} />
+            <AssetManagement mult={mult} />
+            <CasesSummary mult={mult} />
+          </div>
+          <div style={{marginTop: '24px', display: 'flex'}}>
+            <GanttChart />
+          </div>
+        </>
       )}
 
     </div>

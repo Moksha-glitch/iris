@@ -8,11 +8,38 @@ import QueryBar from './components/QueryBar';
 export default function App() {
   const [activeView, setActiveView] = useState('command'); // 'command' or 'table'
   const [inspectedNodeId, setInspectedNodeId] = useState(null);
-  const [queriedNodeIds, setQueriedNodeIds] = useState([]);
+  const [sessions, setSessions] = useState([
+    { id: Date.now().toString(), title: 'New Conversation', history: [], queriedNodeIds: [] }
+  ]);
+  const [activeSessionId, setActiveSessionId] = useState(sessions[0].id);
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  
   const [persona, setPersona] = useState('ceo'); // 'ceo', 'manager', 'analyst'
   const [resolvedNodes, setResolvedNodes] = useState([]);
-  const [chatHistory, setChatHistory] = useState([]);
   const [chatInputValue, setChatInputValue] = useState('');
+
+  const createNewSession = () => {
+    const newId = Date.now().toString();
+    setSessions(prev => [...prev, { id: newId, title: 'New Conversation', history: [], queriedNodeIds: [] }]);
+    setActiveSessionId(newId);
+  };
+
+  const setChatHistory = React.useCallback((updater) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id === activeSessionId) {
+        const newHistory = typeof updater === 'function' ? updater(s.history) : updater;
+        let newTitle = s.title;
+        if (s.title === 'New Conversation' && newHistory.length > 0) {
+          const firstUserMsg = newHistory.find(m => m.type === 'user');
+          if (firstUserMsg) {
+             newTitle = firstUserMsg.text.length > 30 ? firstUserMsg.text.substring(0, 30) + '...' : firstUserMsg.text;
+          }
+        }
+        return { ...s, history: newHistory, title: newTitle };
+      }
+      return s;
+    }));
+  }, [activeSessionId]);
   
   const openInspector = (id) => {
     setActiveView('table');
@@ -29,36 +56,43 @@ export default function App() {
     }
   };
 
-  const handleQuery = (query) => {
+  const getInsightId = (query) => {
     const lowerQ = query.toLowerCase();
-    
+    if (lowerQ.includes('birmingham')) return 'LOC-BirminghamDC';
+    if (lowerQ.includes('charlotte')) return 'LOC-Charlotte';
+    if (lowerQ.includes('leland')) return 'LOC-Leland';
+    if (lowerQ.includes('opelika')) return 'LOC-Opelika';
+    if (lowerQ.includes('pollocksville')) return 'LOC-Pollocksville';
+    if (lowerQ.includes('unassigned')) return 'LOC-Unassigned';
+    return null;
+  };
+
+  const handleQuery = (query) => {
     // Auto-focus table row based on query
-    let newId = null;
-    if (lowerQ.includes('birmingham')) {
-      newId = 'LOC-BirminghamDC';
-    } else if (lowerQ.includes('charlotte')) {
-      newId = 'LOC-Charlotte';
-    } else if (lowerQ.includes('leland')) {
-      newId = 'LOC-Leland';
-    } else if (lowerQ.includes('opelika')) {
-      newId = 'LOC-Opelika';
-    } else if (lowerQ.includes('pollocksville')) {
-      newId = 'LOC-Pollocksville';
-    } else if (lowerQ.includes('unassigned')) {
-      newId = 'LOC-Unassigned';
-    }
+    const newId = getInsightId(query);
     
     if (newId) {
-      setQueriedNodeIds(prev => {
-        if (prev.includes(newId)) {
-          return prev;
+      setSessions(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+          if (s.queriedNodeIds.includes(newId)) return s;
+          return { ...s, queriedNodeIds: [...s.queriedNodeIds, newId] };
         }
-        return [...prev, newId];
-      });
+        return s;
+      }));
       setTimeout(() => {
         const el = document.getElementById(`chat-insight-${newId}`);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
+    }
+  };
+
+  const handleHistoryClick = (query) => {
+    const newId = getInsightId(query);
+    if (newId) {
+      const el = document.getElementById(`chat-insight-${newId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   };
 
@@ -72,18 +106,23 @@ export default function App() {
           <div className="sv-left">
             <QueryBar 
               onQuery={handleQuery} 
+              onHistoryClick={handleHistoryClick}
               persona={persona} 
-              history={chatHistory} 
+              history={activeSession.history} 
               setHistory={setChatHistory} 
               inputValue={chatInputValue} 
-              setInputValue={setChatInputValue} 
+              setInputValue={setChatInputValue}
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              setActiveSessionId={setActiveSessionId}
+              createNewSession={createNewSession}
             />
           </div>
           <div className="sv-right">
             <IntelligenceTable 
-              activeNodeId={inspectedNodeId || (queriedNodeIds.length > 0 ? queriedNodeIds[queriedNodeIds.length - 1] : null)} 
+              activeNodeId={inspectedNodeId || (activeSession.queriedNodeIds.length > 0 ? activeSession.queriedNodeIds[activeSession.queriedNodeIds.length - 1] : null)} 
               onNodeClick={setInspectedNodeId} 
-              queriedNodeIds={queriedNodeIds}
+              queriedNodeIds={activeSession.queriedNodeIds}
             />
           </div>
         </div>
