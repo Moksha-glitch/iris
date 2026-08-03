@@ -9,7 +9,7 @@ export const PERSONAS = {
     shortLabel: 'Leadership',
     icon: '👔',
     color: '#1D4ED8',
-    desc: 'KPIs, executive summaries, trend analysis, ROI',
+    desc: 'KPIs, executive summaries, trend analysis, coverage',
   },
   serviceProvider: {
     id: 'serviceProvider',

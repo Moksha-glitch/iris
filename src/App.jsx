@@ -4,51 +4,22 @@ import CommandCenter from './components/CommandCenter';
 import IntelligenceTable from './components/IntelligenceTable';
 import InspectorPane from './components/InspectorPane';
 import AgenticChat from './components/AgenticChat';
-import DashboardPanel from './components/DashboardPanel';
+import AnalysisPanel from './components/AnalysisPanel';
+import ReportsTable from './components/ReportsTable';
 import Toast from './components/Toast';
 import { ChatProvider, useChatContext } from './agentic';
-import { findDecisionByQuery } from './store';
-
-function WidgetsAside({ open, onClose }) {
-  const { dashboardWidgets } = useChatContext();
-  const hasWidgets = dashboardWidgets.length > 0;
-  const visible = hasWidgets && open;
-
-  return (
-    <aside
-      className={`sv-right widgets-pane ${visible ? 'is-active' : 'is-inactive'} ${
-        open && hasWidgets ? 'is-drawer-open' : ''
-      }`}
-      aria-label="Dashboard widgets"
-      aria-hidden={!visible}
-    >
-      <DashboardPanel onClose={onClose} />
-    </aside>
-  );
-}
 
 function AppShell() {
-  const { dashboardWidgets } = useChatContext();
+  const { activeAnalysis, clearAnalysis, reports } = useChatContext();
   const [activeView, setActiveView] = useState('command');
   const [inspectedNodeId, setInspectedNodeId] = useState(null);
   const [queriedNodeIds, setQueriedNodeIds] = useState([]);
   const [resolvedNodes, setResolvedNodes] = useState([]);
   const [highlightId, setHighlightId] = useState(null);
   const [toast, setToast] = useState('');
-  const [widgetsOpen, setWidgetsOpen] = useState(false);
 
   const showToast = useCallback((msg) => setToast(msg), []);
-
-  // Open widgets bar when the first widget is pinned; close when empty
-  useEffect(() => {
-    if (dashboardWidgets.length === 0) {
-      setWidgetsOpen(false);
-      return;
-    }
-    if (dashboardWidgets.length === 1) {
-      setWidgetsOpen(true);
-    }
-  }, [dashboardWidgets.length]);
+  const showAnalysis = Boolean(activeAnalysis);
 
   useEffect(() => {
     if (!highlightId) return undefined;
@@ -75,35 +46,29 @@ function AppShell() {
     [showToast]
   );
 
-  const handleChatNavigate = useCallback((query, { openDirectory = false } = {}) => {
-    const hit = findDecisionByQuery(query);
-    if (!hit) return;
-    setQueriedNodeIds((prev) => (prev.includes(hit.id) ? prev : [...prev, hit.id]));
-    setInspectedNodeId(null);
-    setHighlightId(hit.id);
-    if (openDirectory) setActiveView('table');
+  const closeAnalysis = useCallback(() => {
+    clearAnalysis();
+  }, [clearAnalysis]);
+
+  const handleNav = useCallback((view) => {
+    setActiveView(view);
   }, []);
 
-  const closeWidgets = useCallback(() => {
-    setWidgetsOpen(false);
-  }, []);
-
-  const toggleWidgets = useCallback(() => {
-    setWidgetsOpen((v) => !v);
+  const goToCommand = useCallback(() => {
+    setActiveView('command');
   }, []);
 
   const handleWidgetPinned = useCallback(() => {
-    setWidgetsOpen(true);
-  }, []);
+    clearAnalysis();
+    setActiveView('command');
+  }, [clearAnalysis]);
 
   return (
     <div id="app">
       <Sidebar
         activeView={activeView}
-        setActiveView={setActiveView}
-        widgetCount={dashboardWidgets.length}
-        widgetsOpen={widgetsOpen}
-        onOpenWidgets={toggleWidgets}
+        setActiveView={handleNav}
+        reportCount={reports.length}
       />
 
       <div className="split-view-container">
@@ -111,17 +76,34 @@ function AppShell() {
           <AgenticChat
             embedded
             activeView={activeView}
-            onInsightNavigate={handleChatNavigate}
             onToast={showToast}
-            onWidgetPinned={handleWidgetPinned}
+            onOpenAnalysis={goToCommand}
           />
         </aside>
 
         <main
-          className="sv-center"
-          aria-label={activeView === 'command' ? 'Command Center' : 'Intelligence Directory'}
+          className={`sv-center ${showAnalysis && activeView === 'command' ? 'showing-analysis' : ''}`}
+          aria-label={
+            showAnalysis && activeView === 'command'
+              ? 'Analysis detail'
+              : activeView === 'command'
+                ? 'Command Center'
+                : activeView === 'reports'
+                  ? 'Reports'
+                  : 'Intelligence Directory'
+          }
         >
-          {activeView === 'command' ? (
+          {activeView === 'reports' ? (
+            <ReportsTable />
+          ) : showAnalysis && activeView === 'command' ? (
+            <AnalysisPanel
+              analysis={activeAnalysis}
+              onClose={closeAnalysis}
+              onToast={showToast}
+              onWidgetPinned={handleWidgetPinned}
+              variant="center"
+            />
+          ) : activeView === 'command' ? (
             <CommandCenter
               isActive
               embedded
@@ -141,17 +123,7 @@ function AppShell() {
             />
           )}
         </main>
-
-        <WidgetsAside open={widgetsOpen} onClose={closeWidgets} />
       </div>
-
-      {widgetsOpen && dashboardWidgets.length > 0 && (
-        <div
-          className="widgets-drawer-overlay"
-          onClick={closeWidgets}
-          aria-hidden="true"
-        />
-      )}
 
       <InspectorPane
         activeNodeId={inspectedNodeId}

@@ -4,7 +4,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-export default function WorkflowTrace({ steps = [], personaLabel = 'All segments' }) {
+export default function WorkflowTrace({
+  steps = [],
+  personaLabel = 'Service Provider',
+  variant = 'inline', // 'inline' | 'panel'
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [thoughtCursor, setThoughtCursor] = useState({});
@@ -26,12 +30,13 @@ export default function WorkflowTrace({ steps = [], personaLabel = 'All segments
     return () => clearInterval(id);
   }, [allDone, steps.length]);
 
-  // Auto-collapse when complete (Claude behavior)
+  // Auto-collapse when complete (chat + dashboard BTS)
   useEffect(() => {
     if (!steps.length) return undefined;
     if (allDone && !wasComplete.current) {
       wasComplete.current = true;
-      const t = setTimeout(() => setCollapsed(true), 700);
+      const delay = variant === 'panel' ? 900 : 700;
+      const t = setTimeout(() => setCollapsed(true), delay);
       return () => clearTimeout(t);
     }
     if (!allDone) {
@@ -39,7 +44,7 @@ export default function WorkflowTrace({ steps = [], personaLabel = 'All segments
       setCollapsed(false);
     }
     return undefined;
-  }, [allDone, steps.length]);
+  }, [allDone, steps.length, variant]);
 
   // Stream thought tokens for the active step
   useEffect(() => {
@@ -110,7 +115,7 @@ export default function WorkflowTrace({ steps = [], personaLabel = 'All segments
 
   return (
     <div
-      className={`workflow-trace ${allDone ? 'complete' : 'running'} ${collapsed ? 'is-collapsed' : ''}`}
+      className={`workflow-trace ${allDone ? 'complete' : 'running'} ${collapsed ? 'is-collapsed' : ''} ${variant === 'panel' ? 'variant-panel' : ''}`}
     >
       <button
         type="button"

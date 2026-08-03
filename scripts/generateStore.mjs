@@ -33,7 +33,16 @@ const decisions = truckFleetData.map((p) => {
   const overdue = relatedWOs.filter(w => w.caseAge > 700);
   const rag = ragForProvider(p);
   const trend = trendForProvider(p);
-  const varEstimate = p.trucksWithoutRFID * 450 + overdue.length * 1250;
+  const exposureUnits = p.trucksWithoutRFID + overdue.length;
+  const exposureLabel =
+    exposureUnits === 0
+      ? 'None'
+      : [
+          p.trucksWithoutRFID > 0 ? `${p.trucksWithoutRFID} unequipped` : null,
+          overdue.length > 0 ? `${overdue.length} overdue WO` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
 
   const whatsChanged = [];
   if (p.trucksWithoutRFID > 0) {
@@ -55,8 +64,8 @@ const decisions = truckFleetData.map((p) => {
     verdict: rag === 'r' ? 'Critical Gap' : rag === 'a' ? 'Needs Attention' : 'On Track',
     rag,
     confidence: Math.min(99.5, Math.max(70, 100 - p.trucksWithoutRFID * 0.8 - overdue.length * 2)),
-    valueAtRisk: varEstimate > 0 ? `$${varEstimate.toLocaleString()}` : '$0',
-    financialImpact: varEstimate,
+    valueAtRisk: exposureLabel,
+    financialImpact: 0,
     trend,
     truckCount: p.truckCount,
     trucksWithRFID: p.trucksWithRFID,
@@ -153,8 +162,8 @@ if (edmontonWOs.length) {
     verdict: woSummary.overdueWOs > 0 ? 'Critical Backlog' : 'Monitoring',
     rag: woSummary.overdueWOs >= 2 ? 'r' : 'a',
     confidence: 92.5,
-    valueAtRisk: `$${(woSummary.overdueWOs * 1250).toLocaleString()}`,
-    financialImpact: woSummary.overdueWOs * 1250,
+    valueAtRisk: woSummary.overdueWOs > 0 ? `${woSummary.overdueWOs} overdue WO` : 'None',
+    financialImpact: 0,
     trend: 'down',
     truckCount: 0,
     trucksWithRFID: 0,

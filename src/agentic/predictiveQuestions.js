@@ -17,7 +17,7 @@ const questionPool = {
   leadership: [
     { label: 'Fleet Coverage Gap', query: `What's the fleet RFID coverage gap? ${fleetSummary.trucksWithoutRFID} trucks are unequipped.`, icon: '📡' },
     { label: 'SLA Risk Overview', query: `Which work orders pose the highest SLA risk? ${woSummary.overdueWOs} are overdue.`, icon: '⚠️' },
-    { label: 'Provider ROI', query: `Show ROI impact of the top 5 service providers by fleet size.`, icon: '💰' },
+    { label: 'Top Providers', query: `Show the top 5 service providers by fleet size.`, icon: '🚛' },
     { label: 'Operational Summary', query: `Give me an executive summary of ${fleetSummary.totalProviders} providers and ${woSummary.totalWOs} open work orders.`, icon: '📋' },
     { label: 'WO Aging Trend', query: `Analyze the aging trend of open work orders. Average age is ${woSummary.avgCaseAge} days.`, icon: '📈' },
     { label: 'Dispatch Bottlenecks', query: `Which dispatch centers have the most unresolved work orders?`, icon: '🔄' },

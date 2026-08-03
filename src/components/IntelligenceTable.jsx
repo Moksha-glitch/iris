@@ -18,7 +18,7 @@ const TableGroup = ({ title, items, colorClass, activeNodeId, onNodeClick, highl
           <tr>
             <th style={{ width: '35%' }}>Provider / Initiative</th>
             <th style={{ width: '20%' }}>Status</th>
-            <th style={{ width: '15%' }}>VaR Exposed</th>
+            <th style={{ width: '15%' }}>Exposure</th>
             <th style={{ width: '10%' }}>AI Confidence</th>
             <th style={{ width: '20%', textAlign: 'right' }}>Action</th>
           </tr>
@@ -53,7 +53,7 @@ const TableGroup = ({ title, items, colorClass, activeNodeId, onNodeClick, highl
                     {d.trend === 'stable' && <span className="warning-text">− Stable</span>}
                   </div>
                 </td>
-                <td className="it-var">{d.valueAtRisk === '$0' ? '-' : d.valueAtRisk}</td>
+                <td className="it-var">{!d.valueAtRisk || d.valueAtRisk === 'None' || d.valueAtRisk === '$0' ? '-' : d.valueAtRisk}</td>
                 <td className="it-conf">
                   <div className="conf-flex">
                     <span>{d.confidence.toFixed(1)}%</span>

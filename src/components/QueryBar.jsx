@@ -9,7 +9,7 @@ const oldest = [...missingWorkOrders].sort((a, b) => b.caseAge - a.caseAge)[0];
 const followUps = {
   "What's the fleet RFID coverage gap?": [
     { label: 'Largest Gap', query: `Show RFID gap for ${largestGap?.serviceProvider || 'top provider'}` },
-    { label: 'Close Gap Cost', query: 'Estimate cost to close all RFID gaps' },
+    { label: 'Close Gap Plan', query: 'How many RFID installations are needed to close all gaps?' },
   ],
   'Which work orders pose the highest SLA risk?': [
     { label: 'Oldest Cases', query: 'List the 5 oldest open work orders' },
@@ -53,9 +53,9 @@ const initialChips = {
 
 const secondaryPool = {
   ceo: [
-    { label: 'Gap Cost', query: 'Estimate cost to close all RFID gaps' },
+    { label: 'Gap Plan', query: 'How many RFID installations are needed to close all gaps?' },
     { label: 'Edmonton Dive', query: 'Deep dive into Edmonton AB fleet and work orders' },
-    { label: 'Provider ROI', query: 'Show ROI impact of the top 5 service providers by fleet size' },
+    { label: 'Top Providers', query: 'Show the top 5 service providers by fleet size' },
   ],
   manager: [
     { label: 'D-05960', query: 'Show all work orders assigned to dispatch D-05960' },
@@ -77,8 +77,8 @@ function buildResponse(query) {
   if (q.includes('rfid coverage gap') || (q.includes('coverage') && q.includes('gap'))) {
     return `Network RFID coverage is ${fleetSummary.rfidCoverage}% across ${fleetSummary.totalTrucks} trucks. ${fleetSummary.trucksWithoutRFID} trucks are unequipped. Largest gap: ${largestGap?.serviceProvider} (${largestGap?.trucksWithoutRFID} trucks).`;
   }
-  if (q.includes('estimate cost') || q.includes('close all rfid')) {
-    return `Estimated cost to equip ${fleetSummary.trucksWithoutRFID} unequipped trucks: $${(fleetSummary.trucksWithoutRFID * 450).toLocaleString()} at $450/unit.`;
+  if (q.includes('estimate cost') || q.includes('close all rfid') || q.includes('installations are needed')) {
+    return `${fleetSummary.trucksWithoutRFID} RFID installations needed to close all gaps (current coverage ${fleetSummary.rfidCoverage}%).`;
   }
   if (q.includes('sla risk') || (q.includes('work order') && q.includes('risk'))) {
     return `${woSummary.overdueWOs} of ${woSummary.totalWOs} open WOs exceed 700 days. Oldest: WO #${oldest?.woNumber} (${oldest?.caseAge} days, ${oldest?.requestType}). Avg age: ${woSummary.avgCaseAge} days.`;
@@ -131,13 +131,13 @@ function buildResponse(query) {
   if (q.includes('map rfid') || q.includes('coverage across')) {
     return `RFID coverage ${fleetSummary.rfidCoverage}% network-wide. ${gapProviders.length} providers have gaps. Top gap: ${largestGap?.serviceProvider} (${largestGap?.trucksWithoutRFID}).`;
   }
-  if (q.includes('roi')) {
-    return `Current RFID ROI ~$${(fleetSummary.trucksWithRFID * 2100).toLocaleString()}/yr. Gap opportunity ~$${(fleetSummary.trucksWithoutRFID * 2100).toLocaleString()}/yr at $2,100 per equipped truck.`;
+  if (q.includes('roi') || (q.includes('top 5') && q.includes('provider'))) {
+    return fleetSummary.top5Providers.map((p, i) => `${i + 1}. ${p.serviceProvider}: ${p.truckCount} trucks (${((p.trucksWithRFID / p.truckCount) * 100).toFixed(0)}% RFID)`).join(' | ');
   }
 
   const hit = findDecisionByQuery(query);
   if (hit) {
-    return `Centered on ${hit.title}. Verdict: ${hit.verdict}. VaR: ${hit.valueAtRisk}. ${hit.whatsChanged[0] || ''}`;
+    return `Centered on ${hit.title}. Verdict: ${hit.verdict}. Exposure: ${hit.valueAtRisk}. ${hit.whatsChanged[0] || ''}`;
   }
   return `Analyzed against ${fleetSummary.totalTrucks} fleet assets and ${woSummary.totalWOs} open WOs. Try RFID coverage, SLA risk, Edmonton, or dispatch queries.`;
 }

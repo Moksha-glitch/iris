@@ -4,6 +4,7 @@
 // ============================================================
 
 import { reportContext, preloadedReports } from './preloadedReports';
+import { shapeAgentResponse } from './responseShape';
 
 const { fleetSummary, woSummary, truckFleetData, missingWorkOrders, edmonton, gapProviders } = reportContext;
 const edmontonCoverage = edmonton?.truckCount
@@ -33,7 +34,8 @@ export async function mockAgentResponse(query, persona, onStepUpdate) {
     if (onStepUpdate) onStepUpdate(i, 'done');
   }
 
-  return routeQuery(query, persona);
+  const raw = routeQuery(query, persona);
+  return shapeAgentResponse(raw, query);
 }
 
 export function getWorkflowSteps() {
@@ -149,7 +151,7 @@ function routeQuery(query, persona) {
           id: 'insight-rfid-gap',
           title: 'RFID Coverage by Provider',
           type: 'gap-analysis',
-          expandedText: `**Detailed RFID Gap Analysis**\n\n${fleetSummary.largestGap?.serviceProvider} is the critical focus area:\n• ${fleetSummary.largestGap?.truckCount} total trucks, ${fleetSummary.largestGap?.trucksWithRFID} equipped\n• ${fleetSummary.largestGap?.trucksWithoutRFID} trucks operate without tracking capability\n• This represents **${fleetSummary.trucksWithoutRFID ? ((fleetSummary.largestGap.trucksWithoutRFID / fleetSummary.trucksWithoutRFID) * 100).toFixed(0) : 0}%** of all unequipped trucks network-wide\n\nOther providers with gaps:\n${gapProviders.slice(1, 5).map(p => `• ${p.serviceProvider}: ${p.trucksWithoutRFID} unequipped (${((p.trucksWithRFID / p.truckCount) * 100).toFixed(1)}% coverage)`).join('\n')}\n\nEstimated cost to close all gaps: ~$${(fleetSummary.trucksWithoutRFID * 450).toLocaleString()} at $450/unit.`,
+          expandedText: `**Detailed RFID Gap Analysis**\n\n${fleetSummary.largestGap?.serviceProvider} is the critical focus area:\n• ${fleetSummary.largestGap?.truckCount} total trucks, ${fleetSummary.largestGap?.trucksWithRFID} equipped\n• ${fleetSummary.largestGap?.trucksWithoutRFID} trucks operate without tracking capability\n• This represents **${fleetSummary.trucksWithoutRFID ? ((fleetSummary.largestGap.trucksWithoutRFID / fleetSummary.trucksWithoutRFID) * 100).toFixed(0) : 0}%** of all unequipped trucks network-wide\n\nOther providers with gaps:\n${gapProviders.slice(1, 5).map(p => `• ${p.serviceProvider}: ${p.trucksWithoutRFID} unequipped (${((p.trucksWithRFID / p.truckCount) * 100).toFixed(1)}% coverage)`).join('\n')}\n\nInstallations needed to close all gaps: **${fleetSummary.trucksWithoutRFID}** RFID readers.`,
           dataForWidget: {
             chartType: 'bar',
             title: 'RFID Coverage by Provider',
@@ -189,7 +191,7 @@ function routeQuery(query, persona) {
           id: 'insight-wo-aging',
           title: 'Work Order Age Distribution',
           type: 'risk-analysis',
-          expandedText: `**Case Age Breakdown**\n\n• 0-500 days: ${missingWorkOrders.filter(w => w.caseAge <= 500).length} work orders\n• 500-700 days: ${missingWorkOrders.filter(w => w.caseAge > 500 && w.caseAge <= 700).length} work orders\n• 700-1000 days: ${missingWorkOrders.filter(w => w.caseAge > 700 && w.caseAge <= 1000).length} work orders\n• 1000+ days: ${missingWorkOrders.filter(w => w.caseAge > 1000).length} work orders ⚠️ CRITICAL\n\nSLA penalty exposure estimated at $${(missingWorkOrders.filter(w => w.caseAge > 700).length * 1250).toLocaleString()} based on $1,250 per overdue case.`,
+          expandedText: `**Case Age Breakdown**\n\n• 0-500 days: ${missingWorkOrders.filter(w => w.caseAge <= 500).length} work orders\n• 500-700 days: ${missingWorkOrders.filter(w => w.caseAge > 500 && w.caseAge <= 700).length} work orders\n• 700-1000 days: ${missingWorkOrders.filter(w => w.caseAge > 700 && w.caseAge <= 1000).length} work orders\n• 1000+ days: ${missingWorkOrders.filter(w => w.caseAge > 1000).length} work orders ⚠️ CRITICAL\n\nSLA exposure: **${missingWorkOrders.filter(w => w.caseAge > 700).length} overdue cases** above the 700-day threshold.`,
           dataForWidget: {
             chartType: 'bar',
             title: 'WO Age Distribution',
@@ -220,10 +222,10 @@ function routeQuery(query, persona) {
     };
   }
 
-  // --- ROI / Top Providers ---
+  // --- Top Providers / Fleet Size ---
   if (q.includes('roi') || q.includes('top') || q.includes('provider') || q.includes('fleet size')) {
     return {
-      text: `**Service Provider Fleet Analysis — Top 5 by Size**\n\n${fleetSummary.top5Providers.map((p, i) => `${i + 1}. **${p.serviceProvider}** — ${p.truckCount} trucks (${p.trucksWithRFID} RFID-equipped, ${((p.trucksWithRFID / p.truckCount) * 100).toFixed(0)}% coverage)`).join('\n')}\n\nEdmonton AB dominates with **${edmonton ? ((edmonton.truckCount / fleetSummary.totalTrucks) * 100).toFixed(0) : 0}%** of total fleet.\n\nROI Consideration: Each RFID-equipped truck contributes an estimated $2,100/year in asset recovery savings. Edmonton AB alone represents ~$${edmonton ? (edmonton.truckCount * 2100).toLocaleString() : 0} in annual RFID ROI at full coverage.`,
+      text: `**Service Provider Fleet Analysis — Top 5 by Size**\n\n${fleetSummary.top5Providers.map((p, i) => `${i + 1}. **${p.serviceProvider}** — ${p.truckCount} trucks (${p.trucksWithRFID} RFID-equipped, ${((p.trucksWithRFID / p.truckCount) * 100).toFixed(0)}% coverage)`).join('\n')}\n\nEdmonton AB dominates with **${edmonton ? ((edmonton.truckCount / fleetSummary.totalTrucks) * 100).toFixed(0) : 0}%** of total fleet.\n\nCoverage opportunity: equipping the remaining **${fleetSummary.trucksWithoutRFID}** unequipped trucks would bring network RFID coverage to 100%.`,
       actionableInsights: [
         {
           id: 'insight-provider-fleet',
@@ -241,17 +243,17 @@ function routeQuery(query, persona) {
           },
         },
         {
-          id: 'insight-roi-estimate',
-          title: 'RFID ROI Estimate',
+          id: 'insight-coverage-gap',
+          title: 'RFID Coverage Gap',
           type: 'kpi',
-          expandedText: `**RFID ROI Model**\n\nAt $2,100/year per RFID-equipped truck:\n• Current ROI: $${(fleetSummary.trucksWithRFID * 2100).toLocaleString()}/year\n• Full coverage ROI: $${(fleetSummary.totalTrucks * 2100).toLocaleString()}/year\n• Gap opportunity: $${(fleetSummary.trucksWithoutRFID * 2100).toLocaleString()}/year`,
+          expandedText: `**RFID Coverage Opportunity**\n\n• Currently equipped: **${fleetSummary.trucksWithRFID}** trucks (${fleetSummary.rfidCoverage}%)\n• Unequipped: **${fleetSummary.trucksWithoutRFID}** trucks\n• Full coverage target: **${fleetSummary.totalTrucks}** trucks`,
           dataForWidget: {
             chartType: 'kpi',
-            title: 'Annual RFID ROI',
-            value: '$' + (fleetSummary.trucksWithRFID * 2100).toLocaleString(),
-            subtitle: `${fleetSummary.trucksWithRFID} equipped trucks × $2,100`,
+            title: 'Unequipped Trucks',
+            value: String(fleetSummary.trucksWithoutRFID),
+            subtitle: `${fleetSummary.trucksWithRFID} of ${fleetSummary.totalTrucks} equipped`,
             trend: 'up',
-            delta: '+$' + (fleetSummary.trucksWithoutRFID * 2100).toLocaleString() + ' potential',
+            delta: `${fleetSummary.rfidCoverage}% coverage`,
           },
         },
       ],
@@ -342,7 +344,7 @@ function routeQuery(query, persona) {
           id: 'insight-bulk-cluster',
           title: 'Dallas TX Clustering',
           type: 'geographic',
-          expandedText: `**Geographic Cluster Alert**\n\n${bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length} bulk pickup WOs in the Dallas TX corridor. Batch dispatch could reduce per-WO cost by ~40%.`,
+          expandedText: `**Geographic Cluster Alert**\n\n${bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length} bulk pickup WOs in the Dallas TX corridor. Batch dispatch could clear multiple WOs in a single route (~40% fewer trips).`,
           dataForWidget: {
             chartType: 'bar',
             title: 'Bulk Pickup by Location',

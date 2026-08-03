@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   useChatContext,
   mockAgentResponse,
@@ -8,16 +8,15 @@ import {
   PERSONAS,
   reportContext,
 } from '../agentic';
-import WorkflowTrace from './WorkflowTrace';
 import PredictiveQuestions from './PredictiveQuestions';
-import ActionableInsight from './ActionableInsight';
 import FormattedReply from './FormattedReply';
 
 const { fleetSummary, woSummary } = reportContext;
 
 const VIEW_HINTS = {
-  command: 'Answers update the Command Center lens',
-  table: 'Matching providers open in the Directory',
+  command: 'Summaries stay in chat · pin insights to the Home dashboard',
+  table: 'Directory stays available from the sidebar',
+  reports: 'Tabular reports pinned from analysis insights',
 };
 
 const INFO_BITS = [
@@ -32,9 +31,8 @@ const INFO_BITS = [
 export default function AgenticChat({
   embedded = false,
   activeView = 'command',
-  onInsightNavigate,
   onToast,
-  onWidgetPinned,
+  onOpenAnalysis,
 }) {
   const {
     activePersona,
@@ -45,6 +43,14 @@ export default function AgenticChat({
     trackQuery,
     usedQueries,
     clearChat,
+    setAnalysis,
+    updateAnalysis,
+    clearAnalysis,
+    focusClaim,
+    activeAnalysis,
+    analysisHistory,
+    upsertAnalysisHistory,
+    scrollToAnalysis,
   } = useChatContext();
 
   const [inputValue, setInputValue] = useState('');
@@ -55,6 +61,11 @@ export default function AgenticChat({
   const inputRef = useRef(null);
   const infoRef = useRef(null);
   const infoBtnRef = useRef(null);
+
+  const questionHistory = useMemo(
+    () => analysisHistory.filter((a) => a.query && !a.isStreaming),
+    [analysisHistory]
+  );
 
   useEffect(() => {
     if (historyRef.current) {
@@ -84,22 +95,60 @@ export default function AgenticChat({
   const predictiveQs = getPredictiveQuestions(activePersona, usedQueries);
   const currentPersona = getPersonaConfig(activePersona);
 
+  const openHistoryItem = useCallback(
+    (analysisId) => {
+      if (!analysisId) return;
+      const item = analysisHistory.find((a) => a.id === analysisId);
+      if (item) {
+        onOpenAnalysis?.();
+        setAnalysis(item);
+        scrollToAnalysis(analysisId);
+      }
+    },
+    [analysisHistory, setAnalysis, scrollToAnalysis, onOpenAnalysis]
+  );
+
   const runQuery = useCallback(
     async (query) => {
       const trimmed = query.trim();
       if (!trimmed || isProcessing) return;
 
+      const analysisId = `analysis-${Date.now()}`;
+
       setInputValue('');
       setConfirmClear(false);
+      onOpenAnalysis?.();
       trackQuery(trimmed);
-      addMessage({ type: 'user', text: trimmed, timestamp: Date.now() });
+      addMessage({
+        type: 'user',
+        text: trimmed,
+        analysisId,
+        timestamp: Date.now(),
+      });
 
       const steps = getWorkflowSteps();
+
+      const draft = {
+        id: analysisId,
+        query: trimmed,
+        persona: activePersona,
+        workflowSteps: steps,
+        summary: '',
+        detail: '',
+        sources: [],
+        insights: [],
+        isStreaming: true,
+        timestamp: Date.now(),
+      };
+
+      setAnalysis(draft);
+      upsertAnalysisHistory(draft);
+
       addMessage({
         type: 'agent',
         text: '',
-        workflowSteps: steps,
-        insights: [],
+        sources: [],
+        analysisId,
         isStreaming: true,
         timestamp: Date.now(),
       });
@@ -108,54 +157,69 @@ export default function AgenticChat({
 
       try {
         const result = await mockAgentResponse(trimmed, activePersona, (stepIdx, status) => {
-          updateLastMessage({
-            workflowSteps: steps.map((s, i) => ({
-              ...s,
-              status: i < stepIdx ? 'done' : i === stepIdx ? status : 'pending',
-            })),
-          });
+          const workflowSteps = steps.map((s, i) => ({
+            ...s,
+            status: i < stepIdx ? 'done' : i === stepIdx ? status : 'pending',
+          }));
+          updateAnalysis({ workflowSteps });
+          upsertAnalysisHistory({ id: analysisId, workflowSteps });
         });
 
-        updateLastMessage({
-          text: result.text,
+        const doneSteps = steps.map((s) => ({ ...s, status: 'done' }));
+        const completed = {
+          id: analysisId,
+          query: trimmed,
+          persona: activePersona,
+          workflowSteps: doneSteps,
+          summary: result.summary,
+          detail: result.detail,
+          sources: result.sources || [],
           insights: result.actionableInsights || [],
-          workflowSteps: steps.map((s) => ({ ...s, status: 'done' })),
+          isStreaming: false,
+          timestamp: Date.now(),
+        };
+
+        updateLastMessage({
+          text: result.summary || result.text,
+          sources: result.sources || [],
+          analysisId,
           isStreaming: false,
         });
-        // Update Directory "From IRIS" trail — do not open inspector popup
-        onInsightNavigate?.(trimmed);
+
+        setAnalysis(completed);
+        upsertAnalysisHistory(completed);
+        scrollToAnalysis(analysisId);
       } catch {
         updateLastMessage({
           text: 'Something went wrong. Try again in a moment.',
-          workflowSteps: steps.map((s) => ({ ...s, status: 'done' })),
+          analysisId,
           isStreaming: false,
         });
+        const failed = {
+          id: analysisId,
+          workflowSteps: steps.map((s) => ({ ...s, status: 'done' })),
+          detail: 'Analysis failed. Retry the question.',
+          isStreaming: false,
+        };
+        updateAnalysis(failed);
+        upsertAnalysisHistory({ id: analysisId, ...failed });
       }
 
       setIsProcessing(false);
       inputRef.current?.focus();
     },
-    [isProcessing, activePersona, addMessage, updateLastMessage, trackQuery, onInsightNavigate]
-  );
-
-  const handleExploreInsight = useCallback(
-    (insight) => {
-      if (!insight.expandedText || isProcessing) return;
-      addMessage({
-        type: 'user',
-        text: `Tell me more about: ${insight.title}`,
-        timestamp: Date.now(),
-      });
-      addMessage({
-        type: 'agent',
-        text: insight.expandedText,
-        insights: [],
-        workflowSteps: [],
-        isStreaming: false,
-        timestamp: Date.now(),
-      });
-    },
-    [addMessage, isProcessing]
+    [
+      isProcessing,
+      activePersona,
+      addMessage,
+      updateLastMessage,
+      trackQuery,
+      setAnalysis,
+      updateAnalysis,
+      upsertAnalysisHistory,
+      scrollToAnalysis,
+      onOpenAnalysis,
+    ]
   );
 
   const handleClear = () => {
@@ -164,6 +228,7 @@ export default function AgenticChat({
       return;
     }
     clearChat();
+    clearAnalysis();
     setConfirmClear(false);
     onToast?.('Conversation cleared');
     inputRef.current?.focus();
@@ -176,7 +241,7 @@ export default function AgenticChat({
           <div className="ac-brand">
             <div className="ac-brand-text">
               <span className="ac-logo">IRIS</span>
-              <span className="ac-subtitle">Ask · Analyze · Act</span>
+              <span className="ac-subtitle">Summary in chat · Detail in dashboard</span>
             </div>
             <div className="ac-header-actions">
               <div className="ac-info-menu" ref={infoRef}>
@@ -270,6 +335,27 @@ export default function AgenticChat({
               );
             })}
           </div>
+
+          {questionHistory.length > 0 && (
+            <div className="ac-chat-history" aria-label="Chat history">
+              <div className="ac-chat-history-label">History</div>
+              <div className="ac-chat-history-list">
+                {questionHistory.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`ac-history-chip ${
+                      activeAnalysis?.id === item.id ? 'active' : ''
+                    }`}
+                    onClick={() => openHistoryItem(item.id)}
+                    title={item.query}
+                  >
+                    {item.query}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </header>
 
         <div className="ac-messages" ref={historyRef} aria-live="polite">
@@ -278,8 +364,11 @@ export default function AgenticChat({
               <div className="ac-welcome-icon" aria-hidden>
                 {currentPersona.icon}
               </div>
-              <h2>What do you need to decide?</h2>
-              <p>Pick a suggested question, or type your own. Pin insights to open Widgets.</p>
+              <h2>Service Provider ops desk</h2>
+              <p>
+                Ask a question for a short summary. Detail replaces Command Center. Use history to
+                jump back; pin insights to dashboard or reports.
+              </p>
             </div>
           )}
 
@@ -290,7 +379,16 @@ export default function AgenticChat({
                   <div className="ac-msg-avatar user-avatar" aria-hidden>
                     You
                   </div>
-                  <div className="ac-msg-bubble user-bubble">{msg.text}</div>
+                  <button
+                    type="button"
+                    className={`ac-msg-bubble user-bubble is-history ${
+                      activeAnalysis?.id === msg.analysisId ? 'active' : ''
+                    }`}
+                    onClick={() => msg.analysisId && openHistoryItem(msg.analysisId)}
+                    title="Jump to this question in details"
+                  >
+                    {msg.text}
+                  </button>
                 </div>
               )}
 
@@ -304,34 +402,30 @@ export default function AgenticChat({
                     {currentPersona.icon}
                   </div>
                   <div className="ac-msg-content">
-                    {msg.workflowSteps?.length > 0 && (
-                      <WorkflowTrace
-                        steps={msg.workflowSteps}
-                        personaLabel={currentPersona.shortLabel}
-                      />
-                    )}
-                    {msg.text && (
+                    {msg.text ? (
                       <div className="ac-msg-text">
                         <FormattedReply
                           text={msg.text}
-                          onRedirect={(label) =>
-                            onInsightNavigate?.(label, { openDirectory: true })
+                          sources={
+                            msg.sources ||
+                            analysisHistory.find((a) => a.id === msg.analysisId)?.sources ||
+                            activeAnalysis?.sources ||
+                            []
                           }
+                          mode="chat"
+                          onTraverse={(claim) => {
+                            if (msg.analysisId) openHistoryItem(msg.analysisId);
+                            else if (!activeAnalysis) {
+                              onToast?.('Ask a question first to open details');
+                              return;
+                            }
+                            focusClaim(claim);
+                          }}
                         />
                       </div>
-                    )}
-                    {msg.insights?.length > 0 && (
-                      <div className="ac-insights-container">
-                        <div className="ac-insights-label">Actionable insights</div>
-                        {msg.insights.map((insight) => (
-                          <ActionableInsight
-                            key={insight.id}
-                            insight={insight}
-                            onExplore={handleExploreInsight}
-                            onToast={onToast}
-                            onPinned={onWidgetPinned}
-                          />
-                        ))}
+                    ) : (
+                      <div className="ac-msg-text ac-msg-pending">
+                        Working the Service Provider lens… detail is opening in the dashboard.
                       </div>
                     )}
                   </div>
@@ -342,7 +436,7 @@ export default function AgenticChat({
 
           {isProcessing && chatHistory[chatHistory.length - 1]?.text === '' && (
             <div className="ac-typing" aria-live="polite">
-              Analyzing with {currentPersona.shortLabel} lens…
+              Streaming summary · detail pane is live
             </div>
           )}
         </div>

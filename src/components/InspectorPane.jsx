@@ -127,7 +127,9 @@ export function InspectorContent({
           </div>
           <div className="ins-metrics-col">
             <div className={`ins-confidence trend-${d.trend}`}>{d.confidence.toFixed(1)}%</div>
-            <div className="ins-var-badge">VaR: {d.valueAtRisk}</div>
+            {d.valueAtRisk && d.valueAtRisk !== 'None' && d.valueAtRisk !== '$0' && (
+              <div className="ins-var-badge">Exposure: {d.valueAtRisk}</div>
+            )}
           </div>
         </div>
         {!isInline && onResolveNode && (

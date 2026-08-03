@@ -92,26 +92,21 @@ const BarChartWidget = ({ widget, onRemove }) => {
   );
 };
 
-export default function DashboardPanel({ onClose }) {
+export default function DashboardPanel({ embedded = false }) {
   const { dashboardWidgets, removeWidget } = useChatContext();
 
+  if (embedded && dashboardWidgets.length === 0) return null;
+
   return (
-    <div className="dashboard-panel">
+    <div className={`dashboard-panel ${embedded ? 'embedded' : ''}`}>
       <div className="dp-header">
         <div>
-          <h2>Widgets</h2>
-          <p className="dp-sub">Pinned from IRIS insights</p>
+          <h2>{embedded ? 'Pinned to dashboard' : 'Dashboard'}</h2>
+          <p className="dp-sub">From IRIS insights</p>
         </div>
-        <div className="dp-header-right">
-          <span className="dp-count" aria-label={`${dashboardWidgets.length} widgets`}>
-            {dashboardWidgets.length}
-          </span>
-          {onClose && (
-            <button type="button" className="dp-close" onClick={onClose} aria-label="Close widgets">
-              ×
-            </button>
-          )}
-        </div>
+        <span className="dp-count" aria-label={`${dashboardWidgets.length} widgets`}>
+          {dashboardWidgets.length}
+        </span>
       </div>
 
       {dashboardWidgets.length === 0 ? (

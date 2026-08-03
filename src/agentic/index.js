@@ -8,8 +8,9 @@
 // Pipeline: Query → WorkflowTrace → Insights → Add to Dashboard widgets
 // ============================================================
 
-export { ChatProvider, useChatContext } from './chatStore';
+export { ChatProvider, useChatContext, buildReportFromInsight } from './chatStore';
 export { mockAgentResponse, getWorkflowSteps } from './mockAgentService';
 export { getPredictiveQuestions, getAllQuestions } from './predictiveQuestions';
 export { PERSONAS, getPersonaConfig } from './personas';
 export { preloadedReports, reportContext } from './preloadedReports';
+export { shapeAgentResponse, inferSource } from './responseShape';

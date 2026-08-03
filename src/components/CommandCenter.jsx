@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { truckFleetData, fleetSummary, woSummary, missingWorkOrders, providerId } from '../excelData';
 import { useChatContext, PERSONAS } from '../agentic';
+import DashboardPanel from './DashboardPanel';
 
 const KpiCell = ({ val, lbl, valClass = '' }) => (
   <div className="cc-kpi-cell">
@@ -165,8 +166,8 @@ const CEOTriage = React.memo(({ onInvestigate, resolvedNodes }) => {
       type: 'critical',
       title: `${woSummary.overdueWOs} overdue missing work orders`,
       desc: `Oldest: WO #${oldest?.woNumber} at ${oldest?.caseAge} days (${oldest?.requestType}).`,
-      varText: `VaR: $${(woSummary.overdueWOs * 1250).toLocaleString()}`,
-      score: woSummary.overdueWOs * 1250,
+      varText: `${woSummary.overdueWOs} overdue cases`,
+      score: woSummary.overdueWOs,
       urgency: 3,
     },
     gap && {
@@ -175,7 +176,7 @@ const CEOTriage = React.memo(({ onInvestigate, resolvedNodes }) => {
       title: `${gap.serviceProvider} — ${gap.trucksWithoutRFID} trucks without RFID`,
       desc: `Largest RFID gap in the network (${gap.truckCount} total trucks).`,
       varText: `${gap.trucksWithoutRFID} unequipped`,
-      score: gap.trucksWithoutRFID * 450,
+      score: gap.trucksWithoutRFID,
       urgency: 2,
     },
     edmonton && {
@@ -203,7 +204,7 @@ const CEOTriage = React.memo(({ onInvestigate, resolvedNodes }) => {
           onChange={(e) => setSortBy(e.target.value)}
           aria-label="Sort investigations"
         >
-          <option value="var">Sort by: Value at Risk</option>
+          <option value="var">Sort by: Operational exposure</option>
           <option value="urgency">Sort by: Urgency</option>
         </select>
       </div>
@@ -384,6 +385,8 @@ export default function CommandCenter({ isActive, onInvestigate, resolvedNodes =
           </select>
         </div>
       </div>
+
+      <DashboardPanel embedded />
 
       {persona === 'leadership' && (
         <>
