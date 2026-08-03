@@ -129,7 +129,7 @@ export default function IntelligenceTable({
           <div className="cc-eyebrow">Directory</div>
           <h2>Providers & work orders</h2>
           <div className="it-subtitle">
-            Prioritized by RFID gaps and missing-WO risk. Click a cite in IRIS to jump here.
+            Prioritized by RFID gaps and missing-WO risk. Click a cite in Vision AI to jump here.
           </div>
         </div>
         <div className="it-summary-chips">
@@ -167,7 +167,7 @@ export default function IntelligenceTable({
       {queriedNodeIds.length > 0 && (
         <div className="it-insights-section">
           <div className="it-insights-head">
-            <h2>From IRIS</h2>
+            <h2>From Vision AI</h2>
             <button
               type="button"
               className="ti-btn ghost"

@@ -72,7 +72,7 @@ function AppShell() {
       />
 
       <div className="split-view-container">
-        <aside className="sv-left iris-pane" aria-label="IRIS assistant">
+        <aside className="sv-left iris-pane" aria-label="Vision AI assistant">
           <AgenticChat
             embedded
             activeView={activeView}

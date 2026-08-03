@@ -251,7 +251,7 @@ export default function QueryBar({ onQuery, onHistoryClick, persona, history, se
           style={{ cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center' }}
           onClick={() => setShowSessions(!showSessions)}
         >
-          Iris Chat
+          Vision AI
           <span style={{ fontSize: '10px', marginLeft: '6px', color: 'var(--text-muted)' }}>
             {showSessions ? '▲' : '▼'}
           </span>

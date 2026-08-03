@@ -812,7 +812,7 @@ input:focus-visible,
   border-left: none;
 }
 
-/* Sidebar Query (Iris Chat) */
+/* Sidebar Query (Vision AI Chat) */
 .sidebar-query-container {
   display: flex;
   flex-direction: column;

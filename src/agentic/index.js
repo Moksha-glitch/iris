@@ -1,5 +1,5 @@
 // ============================================================
-// IRIS Agentic Chat — Main Scaffolding (Vite + React)
+// Vision AI Agentic Chat — Main Scaffolding (Vite + React)
 //
 // All new agentic features should extend this module.
 // Contract: mockAgentResponse(query, persona) →

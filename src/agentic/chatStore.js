@@ -189,25 +189,31 @@ export function useChatContext() {
 
 /** Build tabular report rows from an insight + parent analysis */
 export function buildReportFromInsight(insight, analysis) {
+  // Lazy import avoided — keep provider resolution inline for chart names
   const sources = analysis?.sources || [];
   const rows =
     sources.length > 0
-      ? sources.map((s) => ({
-          metric: s.claim,
-          value: s.claim,
-          confidence: s.confidence || '—',
-          source: s.source || '—',
-          note: s.note || '',
-        }))
+      ? sources.map((s) => {
+          const serviceProvider = extractProviderLabel(s.claim) || 'Network';
+          return {
+            serviceProvider,
+            metric: serviceProvider,
+            value: s.claim,
+            confidence: s.confidence || '—',
+            source: s.source || '—',
+            note: s.note || '',
+          };
+        })
       : [
           {
-            metric: insight.title,
+            serviceProvider: extractProviderLabel(insight.title) || 'Network',
+            metric: extractProviderLabel(insight.title) || 'Network',
             value:
               insight.dataForWidget?.value ||
               insight.dataForWidget?.subtitle ||
               insight.type,
             confidence: 'high',
-            source: analysis?.query ? `Q: ${analysis.query}` : 'IRIS analysis',
+            source: analysis?.query ? `Q: ${analysis.query}` : 'Vision AI analysis',
             note: insight.type,
           },
         ];
@@ -217,12 +223,14 @@ export function buildReportFromInsight(insight, analysis) {
     insight.dataForWidget.data.forEach((d) => {
       Object.entries(d).forEach(([k, v]) => {
         if (k === 'name' || typeof v !== 'number') return;
+        const serviceProvider = d.name || 'Network';
         rows.push({
-          metric: `${d.name} · ${k}`,
+          serviceProvider,
+          metric: serviceProvider,
           value: String(v),
           confidence: 'high',
           source: insight.title,
-          note: 'Chart series',
+          note: k,
         });
       });
     });
@@ -237,4 +245,14 @@ export function buildReportFromInsight(insight, analysis) {
     createdAt: Date.now(),
     rows,
   };
+}
+
+function extractProviderLabel(text) {
+  const t = String(text || '');
+  if (/edmonton/i.test(t)) return 'Edmonton AB';
+  if (/network|fleet-wide|all providers/i.test(t)) return 'Network';
+  // Capture "Provider Name — …" or leading proper-noun style labels before metrics
+  const m = t.match(/^([A-Za-z][A-Za-z0-9 .&/-]{1,40}?)(?:\s+[—–-]|\s+\d|\s+\()/);
+  if (m) return m[1].trim();
+  return null;
 }

@@ -102,7 +102,7 @@ export default function DashboardPanel({ embedded = false }) {
       <div className="dp-header">
         <div>
           <h2>{embedded ? 'Pinned to dashboard' : 'Dashboard'}</h2>
-          <p className="dp-sub">From IRIS insights</p>
+          <p className="dp-sub">From Vision AI insights</p>
         </div>
         <span className="dp-count" aria-label={`${dashboardWidgets.length} widgets`}>
           {dashboardWidgets.length}
@@ -113,7 +113,7 @@ export default function DashboardPanel({ embedded = false }) {
         <div className="dp-empty">
           <h3>No widgets yet</h3>
           <p>
-            Ask IRIS a question, then pin an insight with <strong>Add to dashboard</strong>.
+            Ask Vision AI a question, then pin an insight with <strong>Add to dashboard</strong>.
           </p>
         </div>
       ) : (

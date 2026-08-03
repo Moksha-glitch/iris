@@ -20,7 +20,7 @@ export default function ReportsTable() {
         </header>
         <div className="rt-empty">
           <h3>No reports yet</h3>
-          <p>Ask IRIS a question, open the detail dashboard, then pin an insight to Reports.</p>
+          <p>Ask Vision AI a question, open the detail dashboard, then pin an insight to Reports.</p>
         </div>
       </div>
     );
@@ -32,7 +32,7 @@ export default function ReportsTable() {
         <div className="cc-eyebrow">Reports</div>
         <h2>Pinned analysis tables</h2>
         <p className="rt-sub">
-          {reports.length} report{reports.length === 1 ? '' : 's'} from IRIS evidence.
+          {reports.length} report{reports.length === 1 ? '' : 's'} from Vision AI evidence.
         </p>
       </header>
 
@@ -61,7 +61,7 @@ export default function ReportsTable() {
               <table className="rt-table">
                 <thead>
                   <tr>
-                    <th>Metric / claim</th>
+                    <th>Service Provider</th>
                     <th>Value</th>
                     <th>Confidence</th>
                     <th>Source</th>
@@ -71,7 +71,7 @@ export default function ReportsTable() {
                 <tbody>
                   {report.rows.map((row, i) => (
                     <tr key={`${report.id}-${i}`}>
-                      <td>{row.metric}</td>
+                      <td>{row.serviceProvider || row.metric}</td>
                       <td className="rt-val">{row.value}</td>
                       <td>
                         <span className={`rt-conf ${row.confidence}`}>{row.confidence}</span>

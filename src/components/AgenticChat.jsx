@@ -240,7 +240,7 @@ export default function AgenticChat({
         <header className="ac-header">
           <div className="ac-brand">
             <div className="ac-brand-text">
-              <span className="ac-logo">IRIS</span>
+              <span className="ac-logo">Vision AI</span>
               <span className="ac-subtitle">Summary in chat · Detail in dashboard</span>
             </div>
             <div className="ac-header-actions">
@@ -460,7 +460,7 @@ export default function AgenticChat({
               placeholder={`Ask as ${currentPersona.shortLabel}…`}
               disabled={isProcessing}
               autoComplete="off"
-              aria-label="Ask IRIS"
+              aria-label="Ask Vision AI"
             />
             <button
               type="button"

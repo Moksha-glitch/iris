@@ -1,5 +1,40 @@
 import React, { useMemo } from 'react';
 import { useChatContext, buildReportFromInsight } from '../agentic';
+import { truckFleetData, fleetSummary } from '../excelData';
+
+const PROVIDER_NAMES = [...truckFleetData]
+  .map((p) => p.serviceProvider)
+  .sort((a, b) => b.length - a.length);
+
+/**
+ * Resolve a service provider name from free text / chart labels.
+ */
+export function resolveServiceProvider(text, fallback = 'Network') {
+  const t = String(text || '').trim();
+  if (!t) return fallback;
+
+  const stem = t.replace(/…$/, '').trim();
+
+  // Exact / prefix match against known providers (handles truncated chart labels)
+  const exact = PROVIDER_NAMES.find(
+    (name) =>
+      name === t ||
+      name === stem ||
+      name.startsWith(stem) ||
+      (stem.length >= 8 && name.toLowerCase().startsWith(stem.toLowerCase()))
+  );
+  if (exact) return exact;
+
+  const lower = t.toLowerCase();
+  const contained = PROVIDER_NAMES.find((name) => lower.includes(name.toLowerCase()));
+  if (contained) return contained;
+
+  // Common aliases
+  if (/edmonton/i.test(t)) return 'Edmonton AB';
+  if (/network|fleet-wide|all providers|total/i.test(t)) return 'Network';
+
+  return fallback;
+}
 
 /**
  * Flatten analysis sources + insight widget data into one table,
@@ -9,15 +44,21 @@ export function buildRelatedRows(block) {
   const rows = [];
   const sources = block?.sources || [];
   const insights = block?.insights || [];
+  const defaultProvider =
+    fleetSummary.largestGap?.serviceProvider ||
+    fleetSummary.top5Providers?.[0]?.serviceProvider ||
+    'Network';
 
   sources.forEach((s, i) => {
+    const serviceProvider = resolveServiceProvider(s.claim, defaultProvider);
     rows.push({
       id: `src-${block.id}-${i}`,
-      metric: s.claim,
+      serviceProvider,
+      metric: serviceProvider, // back-compat for reports
       value: extractNumericHint(s.claim) || s.claim,
       confidence: s.confidence || '—',
       source: s.source || '—',
-      note: s.note || '',
+      note: s.note || s.claim || '',
       kind: 'source',
       insightId: null,
     });
@@ -26,28 +67,40 @@ export function buildRelatedRows(block) {
   insights.forEach((insight) => {
     const w = insight.dataForWidget || {};
     if (w.chartType === 'kpi') {
+      const serviceProvider = resolveServiceProvider(
+        `${w.title || ''} ${w.subtitle || ''} ${insight.title || ''}`,
+        defaultProvider
+      );
       rows.push({
         id: `kpi-${insight.id}`,
-        metric: w.title || insight.title,
+        serviceProvider,
+        metric: serviceProvider,
         value: w.value ?? '—',
         confidence: 'high',
-        source: w.subtitle || insight.title,
-        note: w.delta || insight.type,
+        source: w.title || insight.title,
+        note: w.delta || w.subtitle || insight.type,
         kind: 'kpi',
         insightId: insight.id,
       });
     }
     if (w.chartType === 'bar' && Array.isArray(w.data)) {
+      const woContext = /wo|work order|sla|dispatch|aging|case age|bulk|repair/i.test(
+        `${w.title || ''} ${insight.title || ''} ${insight.type || ''}`
+      );
+      const barFallback = woContext ? 'Edmonton AB' : defaultProvider;
       w.data.forEach((d, di) => {
+        const lookedUp = resolveServiceProvider(d.name, null);
+        const serviceProvider = lookedUp || barFallback;
         Object.entries(d).forEach(([k, v]) => {
           if (k === 'name' || typeof v !== 'number') return;
           rows.push({
             id: `bar-${insight.id}-${di}-${k}`,
-            metric: `${d.name} · ${k}`,
+            serviceProvider,
+            metric: serviceProvider,
             value: String(v),
             confidence: 'high',
             source: w.title || insight.title,
-            note: insight.type,
+            note: lookedUp ? k : `${d.name}${k !== 'count' && k !== 'trucks' ? ` · ${k}` : ''}`,
             kind: 'series',
             insightId: insight.id,
           });
@@ -55,13 +108,15 @@ export function buildRelatedRows(block) {
       });
     }
     if (!w.chartType) {
+      const serviceProvider = resolveServiceProvider(insight.title, defaultProvider);
       rows.push({
         id: `ins-${insight.id}`,
-        metric: insight.title,
+        serviceProvider,
+        metric: serviceProvider,
         value: insight.type,
         confidence: 'prov',
-        source: block.query || 'IRIS',
-        note: 'Insight',
+        source: block.query || 'Vision AI',
+        note: insight.title || 'Insight',
         kind: 'insight',
         insightId: insight.id,
       });
@@ -113,7 +168,6 @@ export default function AnalysisDataTable({ block, onToast, onWidgetPinned }) {
       onToast?.('Already in reports');
       return;
     }
-    // One combined report with the full related-data table
     addReport({
       id: reportId,
       title: block.query ? `Report · ${block.query}` : 'Analysis report',
@@ -122,14 +176,14 @@ export default function AnalysisDataTable({ block, onToast, onWidgetPinned }) {
       persona: block.persona || 'serviceProvider',
       createdAt: Date.now(),
       rows: rows.map((r) => ({
-        metric: r.metric,
+        serviceProvider: r.serviceProvider,
+        metric: r.serviceProvider,
         value: r.value,
         confidence: r.confidence,
         source: r.source,
         note: r.note,
       })),
     });
-    // Also register per-insight reports when present
     insights.forEach((insight) => {
       const r = buildReportFromInsight(insight, block);
       addReport(r);
@@ -165,7 +219,7 @@ export default function AnalysisDataTable({ block, onToast, onWidgetPinned }) {
         <table className="ap-data-table">
           <thead>
             <tr>
-              <th>Metric</th>
+              <th>Service Provider</th>
               <th>Value</th>
               <th>Confidence</th>
               <th>Source</th>
@@ -175,7 +229,7 @@ export default function AnalysisDataTable({ block, onToast, onWidgetPinned }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="ap-dt-metric">{row.metric}</td>
+                <td className="ap-dt-metric">{row.serviceProvider}</td>
                 <td className="ap-dt-value">{row.value}</td>
                 <td>
                   <span className={`ap-conf ${row.confidence}`}>{row.confidence}</span>
