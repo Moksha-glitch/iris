@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useId, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { inferSource } from '../agentic/responseShape';
+
+/** Only one receipt open across all cites */
+let activeReceiptId = null;
+const receiptListeners = new Set();
+
+function setActiveReceipt(id) {
+  activeReceiptId = id;
+  receiptListeners.forEach((fn) => fn(activeReceiptId));
+}
 
 export function claimAnchorId(claim) {
   return `ap-claim-${String(claim || '')
@@ -10,8 +20,7 @@ export function claimAnchorId(claim) {
 }
 
 /**
- * Bold metric claims → source-confidence badges.
- * In chat mode, cites are traversable into the detail pane.
+ * Bold metric claims → underlined cites with confidence + receipt on hover.
  */
 export default function FormattedReply({
   text,
@@ -21,14 +30,10 @@ export default function FormattedReply({
 }) {
   if (!text) return null;
 
-  const sourceMap = Object.fromEntries(
-    (sources || []).map((s) => [s.claim.toLowerCase(), s])
-  );
-
   return text.split('\n').map((line, i) => {
     if (!line.trim()) return <div key={i} className="ac-spacer" />;
 
-    const content = renderInline(line, sourceMap, mode, i, onTraverse);
+    const content = renderInline(line, sources, mode, i, onTraverse);
 
     if (line.startsWith('• ') || line.startsWith('- ') || line.startsWith('– ')) {
       return (
@@ -82,7 +87,34 @@ export default function FormattedReply({
   });
 }
 
-function renderInline(line, sourceMap, mode, lineKey, onTraverse) {
+function findSourceMeta(label, sources) {
+  const key = label.toLowerCase().trim();
+  const exact = (sources || []).find((s) => s.claim.toLowerCase() === key);
+  if (exact) return exact;
+
+  const partial = (sources || []).find((s) => {
+    const c = s.claim.toLowerCase();
+    return key.includes(c) || c.includes(key) || shareNumber(key, c);
+  });
+  if (partial) return partial;
+
+  const inferred = inferSource(label);
+  return {
+    claim: label,
+    confidence: inferred.confidence,
+    source: inferred.source,
+    note: inferred.note,
+    computed: null,
+  };
+}
+
+function shareNumber(a, b) {
+  const na = a.match(/[\d,.]+%?/);
+  const nb = b.match(/[\d,.]+%?/);
+  return na && nb && na[0] === nb[0];
+}
+
+function renderInline(line, sources, mode, lineKey, onTraverse) {
   const parts = [];
   const re = /\*\*(.+?)\*\*/g;
   let last = 0;
@@ -96,22 +128,17 @@ function renderInline(line, sourceMap, mode, lineKey, onTraverse) {
 
     const parsed = parseBold(match[1]);
     const sourced = isSourcedClaim(parsed.label);
-    const fromMap = sourceMap[parsed.label.toLowerCase()];
-    const meta = fromMap || {
-      confidence: parsed.confidence || inferSource(parsed.label).confidence,
-      source: parsed.source || inferSource(parsed.label).source,
-      note: inferSource(parsed.label).note,
-      claim: parsed.label,
-    };
+    const meta = findSourceMeta(parsed.label, sources);
 
     if (sourced || parsed.confidence) {
       parts.push(
         <SourceCite
           key={`${lineKey}-c-${idx}`}
           label={parsed.label}
-          confidence={meta.confidence || 'high'}
-          source={meta.source}
+          confidence={parsed.confidence || meta.confidence || 'high'}
+          source={parsed.source || meta.source}
           note={meta.note}
+          computed={meta.computed}
           mode={mode}
           traversable={mode === 'chat' && typeof onTraverse === 'function'}
           onTraverse={onTraverse}
@@ -136,56 +163,136 @@ function renderInline(line, sourceMap, mode, lineKey, onTraverse) {
   return parts.length ? parts : line;
 }
 
-function SourceCite({ label, confidence, source, note, mode, traversable, onTraverse }) {
+function SourceCite({
+  label,
+  confidence,
+  source,
+  note,
+  computed,
+  mode,
+  traversable,
+  onTraverse,
+}) {
+  const citeId = useId();
+  const anchorRef = useRef(null);
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, place: 'below' });
+  const anchorId = mode === 'detail' ? claimAnchorId(label) : undefined;
+  const confLabel = confidence === 'high' ? 'high' : 'provisional';
+  const closeTimer = useRef(null);
 
-  const body = (
+  useEffect(() => {
+    const onChange = (id) => setOpen(id === citeId);
+    receiptListeners.add(onChange);
+    return () => receiptListeners.delete(onChange);
+  }, [citeId]);
+
+  const updatePos = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const tipW = 320;
+    const tipH = 140;
+    const gap = 8;
+    const spaceBelow = window.innerHeight - r.bottom;
+    const place = spaceBelow < tipH + gap && r.top > tipH + gap ? 'above' : 'below';
+    let left = r.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8));
+    const top = place === 'below' ? r.bottom + gap : r.top - tipH - gap;
+    setPos({ top: Math.max(8, top), left, place });
+  }, []);
+
+  const show = () => {
+    clearTimeout(closeTimer.current);
+    updatePos();
+    setActiveReceipt(citeId);
+  };
+
+  const hide = () => {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => {
+      if (activeReceiptId === citeId) setActiveReceipt(null);
+    }, 80);
+  };
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onScroll = () => updatePos();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [open, updatePos]);
+
+  const receipt =
+    open &&
+    createPortal(
+      <div
+        className={`ac-receipt is-${pos.place}`}
+        role="tooltip"
+        style={{ top: pos.top, left: pos.left }}
+        onMouseEnter={() => {
+          clearTimeout(closeTimer.current);
+          setActiveReceipt(citeId);
+        }}
+        onMouseLeave={hide}
+      >
+        <div className="ac-receipt-lbl">Receipt · “{label}”</div>
+        <div className="ac-receipt-row">
+          Source: <code>{source}</code>
+        </div>
+        {computed && (
+          <div className="ac-receipt-row">
+            Computed: <code>{computed}</code>
+          </div>
+        )}
+        <div className="ac-receipt-row">
+          Confidence:{' '}
+          <b className={confidence === 'high' ? 'ok' : 'soft'}>{confLabel}</b>
+          {note ? ` — ${note}` : ''}
+        </div>
+        <div className="ac-receipt-def">
+          {traversable ? 'Click claim to open detail' : 'Source confidence receipt'}
+        </div>
+      </div>,
+      document.body
+    );
+
+  const sharedProps = {
+    ref: anchorRef,
+    id: anchorId,
+    className: `ac-cite ac-source-cite ${mode} ${traversable ? 'is-traversable' : ''} ${
+      open ? 'is-open' : ''
+    }`,
+    onMouseEnter: show,
+    onMouseLeave: hide,
+    onFocus: show,
+    onBlur: hide,
+    title: `${confLabel} · ${source}`,
+    'data-claim': label,
+  };
+
+  const inner = (
     <>
       <span className="ac-cite-text">{label}</span>
       <sup className={`ac-cite-badge ${confidence}`}>{confidence}</sup>
-      {open && (
-        <span className="ac-source-tip" role="tooltip">
-          <strong>{confidence === 'high' ? 'High confidence' : 'Provisional'}</strong>
-          <span className="ac-source-tip-src">{source}</span>
-          {note && <span className="ac-source-tip-note">{note}</span>}
-          {traversable && (
-            <span className="ac-source-tip-note">Click to open in detail pane →</span>
-          )}
-        </span>
-      )}
+      {receipt}
     </>
   );
 
-  const sharedProps = {
-    className: `ac-cite ac-source-cite ${mode} ${traversable ? 'is-traversable' : ''}`,
-    onMouseEnter: () => setOpen(true),
-    onMouseLeave: () => setOpen(false),
-    onFocus: () => setOpen(true),
-    onBlur: () => setOpen(false),
-    title: traversable
-      ? `Open detail: ${source} · ${confidence}`
-      : `${source} · ${confidence}`,
-  };
-
   if (traversable) {
     return (
-      <button
-        type="button"
-        {...sharedProps}
-        onClick={() => onTraverse(label)}
-      >
-        {body}
+      <button type="button" {...sharedProps} onClick={() => onTraverse(label)}>
+        {inner}
       </button>
     );
   }
 
   return (
-    <span
-      {...sharedProps}
-      tabIndex={0}
-      data-claim={mode === 'detail' ? label : undefined}
-    >
-      {body}
+    <span {...sharedProps} tabIndex={0}>
+      {inner}
     </span>
   );
 }

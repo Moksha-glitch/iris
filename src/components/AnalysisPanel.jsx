@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import WorkflowTrace from './WorkflowTrace';
-import { claimAnchorId } from './FormattedReply';
+import FormattedReply, { claimAnchorId } from './FormattedReply';
 import StructuredAnswer from './StructuredAnswer';
-import { getPersonaConfig, useChatContext } from '../agentic';
+import { getPersonaConfig, useChatContext, buildIntent } from '../agentic';
 
 /**
  * Center dashboard replacement: stacked BTS + structured answer per question.
@@ -121,13 +121,40 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
   const steps = block.workflowSteps || [];
   const sources = block.sources || [];
   const insights = block.insights || [];
-  const focused = block.focusedClaim;
   const blockId = block.id || 'current';
   const sections =
     block.sections ||
     (block.summary
       ? { summary: block.summary, follows: block.follows || [] }
       : null);
+  const intent = block.intent || (block.query ? buildIntent(block.query) : null);
+
+  const exportResponse = () => {
+    if (!sections) {
+      onToast?.('Nothing to export yet');
+      return;
+    }
+    const html = buildExportHtml({
+      query: block.query,
+      persona: persona.shortLabel || persona.label,
+      sections,
+      sources,
+      timestamp: block.timestamp,
+    });
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const slug = String(block.query || 'response')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+    link.href = url;
+    link.download = `vision-response-${slug || blockId}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+    onToast?.('Response exported as HTML');
+  };
 
   return (
     <article
@@ -137,7 +164,7 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
     >
       <header className="ap-block-head">
         <span className="ap-block-index">Q</span>
-        <div>
+        <div className="ap-block-head-main">
           <h3 className="ap-block-query">{block.query}</h3>
           <p className="ap-block-meta">
             {persona.shortLabel}
@@ -147,7 +174,38 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
             {block.isStreaming ? ' · analyzing…' : ''}
           </p>
         </div>
+        <button
+          type="button"
+          className="ap-export-btn"
+          onClick={exportResponse}
+          disabled={block.isStreaming || !sections}
+          title="Export this response as HTML"
+        >
+          ⬇ Export response
+        </button>
       </header>
+
+      {intent && (
+        <section className="ap-intent" aria-label="How I read your question">
+          <div className="ap-intent-lbl">
+            <span className="ap-intent-dot" aria-hidden />
+            How I read your question
+          </div>
+          <div className="ap-intent-read">
+            <FormattedReply text={intent.read} sources={sources} mode="detail" />
+          </div>
+          {intent.chips?.length > 0 && (
+            <div className="ap-intent-chips">
+              {intent.chips.map(([label, value]) => (
+                <div key={label} className="ap-intent-chip">
+                  <span>{label}</span>
+                  {value}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="ap-section">
         <WorkflowTrace
@@ -157,38 +215,11 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
         />
       </section>
 
-      {sources.length > 0 && (
-        <section className="ap-section ap-sources-section">
-          <h3 className="ap-section-title">Source confidence</h3>
-          <ul className="ap-sources">
-            {sources.map((s) => {
-              const id = `${claimAnchorId(s.claim)}-${blockId}`;
-              const isFocused =
-                focused && focused.toLowerCase() === s.claim.toLowerCase();
-              return (
-                <li
-                  key={s.id || s.claim}
-                  id={isLatest ? claimAnchorId(s.claim) : id}
-                  data-claim={s.claim}
-                  className={`ap-source ${isFocused ? 'is-focused' : ''}`}
-                >
-                  <div className="ap-source-top">
-                    <span className="ap-source-claim">{s.claim}</span>
-                    <span className={`ap-conf ${s.confidence}`}>{s.confidence}</span>
-                  </div>
-                  <div className="ap-source-meta">
-                    <span className="ap-source-name">{s.source}</span>
-                    {s.note && <span className="ap-source-note">{s.note}</span>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
       {sections && (
-        <section className="ap-section ap-full-analysis" id={isLatest ? 'ap-full-analysis' : undefined}>
+        <section
+          className="ap-section ap-full-analysis"
+          id={isLatest ? 'ap-full-analysis' : undefined}
+        >
           <StructuredAnswer
             sections={sections}
             sources={sources}
@@ -202,4 +233,128 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
       )}
     </article>
   );
+}
+
+function buildExportHtml({ query, persona, sections, sources, timestamp }) {
+  const esc = (s) =>
+    String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const inline = (text) =>
+    esc(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  let body = '';
+  let n = 0;
+  const sec = (title, html) => {
+    n += 1;
+    body += `<div class="sec"><div class="sec-h">${n}. ${esc(title)}</div>${html}</div>`;
+  };
+
+  sec('Summary', `<div class="summary">${inline(sections.summary)}</div>`);
+
+  if (sections.table) {
+    const head = sections.table.cols.map((c) => `<th>${esc(c)}</th>`).join('');
+    const rows = sections.table.rows
+      .map((r) => {
+        const cells = r.cells
+          .map((c, i) => {
+            const inner =
+              typeof c === 'object' && c?.pill
+                ? `<span class="pill ${c.pill}">${esc(c.text)}</span>`
+                : esc(c);
+            return `<td${i === 0 ? ' class="c0"' : ''}>${inner}</td>`;
+          })
+          .join('');
+        return `<tr class="${r.flag ? 'flag' : ''}">${cells}</tr>`;
+      })
+      .join('');
+    sec(
+      sections.table.title,
+      `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${
+        sections.table.note ? `<p class="note">${esc(sections.table.note)}</p>` : ''
+      }`
+    );
+  }
+
+  if (sections.chart?.data?.length) {
+    const max = Math.max(...sections.chart.data.map((d) => d.v), 1);
+    const bars = sections.chart.data
+      .map(
+        (d) =>
+          `<div class="bcol"><div class="bwrap"><div class="bar ${d.c || ''}" style="height:${Math.max(
+            8,
+            Math.round((d.v / max) * 100)
+          )}%"></div></div><span>${d.v}${esc(sections.chart.unit || '')}</span><small>${esc(
+            d.l
+          )}</small></div>`
+      )
+      .join('');
+    sec(
+      sections.chart.title,
+      `<div class="chart">${bars}</div>${
+        sections.chart.cap ? `<p class="note">${esc(sections.chart.cap)}</p>` : ''
+      }`
+    );
+  }
+
+  if (sections.analysis?.length) {
+    sec(
+      'Analysis',
+      `<div class="arbox">${sections.analysis.map((p) => `<p>${inline(p)}</p>`).join('')}</div>`
+    );
+  }
+
+  if (sections.recommendations?.length) {
+    sec(
+      'Recommendation',
+      `<div class="arbox"><ul class="rec">${sections.recommendations
+        .map((r) => `<li>${inline(r)}</li>`)
+        .join('')}</ul></div>`
+    );
+  }
+
+  if (sources?.length) {
+    body += `<div class="sec"><div class="sec-h">Sources</div><ul class="srcs">${sources
+      .map(
+        (s) =>
+          `<li><b>${esc(s.claim)}</b> · ${esc(s.confidence)} · <code>${esc(s.source)}</code>${
+            s.note ? ` — ${esc(s.note)}` : ''
+          }</li>`
+      )
+      .join('')}</ul></div>`;
+  }
+
+  const when = timestamp ? new Date(timestamp).toLocaleString() : new Date().toLocaleString();
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vision AI — ${esc(
+    query
+  )}</title>
+<style>
+body{font-family:Inter,Georgia,serif;max-width:720px;margin:32px auto;padding:0 20px;color:#18181B;line-height:1.6;background:#fff}
+h1{font-size:18px;color:#18181B;margin-bottom:4px}.meta{color:#71717A;font-size:12px;margin-bottom:22px}
+.sec{margin-bottom:22px}.sec-h{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#52525B;margin-bottom:8px}
+.summary{border-left:3px solid #E4E4E7;padding-left:14px;font-size:15px;line-height:1.75}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+th{background:#FAFAFA;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+th,td{border:1px solid #E4E4E7;padding:8px 11px}.c0{font-weight:700}
+.flag td{background:#FEF6F5}
+.pill{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px}
+.pill.r{background:#FBE3E0;color:#C0362C}.pill.a{background:#FDECC8;color:#B45309}.pill.g{background:#DEF3E8;color:#0F7A52}
+.chart{display:flex;align-items:flex-end;gap:12px;height:150px;border:1px solid #E4E4E7;padding:10px;border-radius:8px}
+.bcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.bwrap{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.bar{width:36px;background:#3d4f8c;border-radius:5px 5px 0 0}.bar.hi{background:#C0362C}.bar.ok{background:#0F7A52}
+.bcol span{font-size:11px;font-weight:800;margin-top:4px}.bcol small{font-size:10px;color:#71717A}
+.arbox{border:1px solid #E4E4E7;border-radius:10px;padding:14px}.arbox p{margin:0 0 10px;font-size:13.5px}.arbox p:last-child{margin:0}
+.rec{list-style:none;padding:0;margin:0}.rec li{margin:8px 0;padding-left:18px;position:relative}.rec li::before{content:"→";position:absolute;left:0;color:#0F7A52;font-weight:800}
+.note{font-size:11px;color:#71717A;font-style:italic;margin-top:6px}
+.srcs{font-size:12px;color:#52525B;padding-left:18px}.srcs code{font-size:11px;background:#FAFAFA;padding:1px 5px;border-radius:4px;border:1px solid #E4E4E7}
+</style></head><body>
+<h1>${esc(query)}</h1>
+<p class="meta">Vision AI · ${esc(persona)} · exported ${esc(when)}</p>
+${body}
+</body></html>`;
 }

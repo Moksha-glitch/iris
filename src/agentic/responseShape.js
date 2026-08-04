@@ -18,17 +18,123 @@ const SOURCE_CATALOG = [
 export function shapeAgentResponse(result, query = '') {
   const fullText = result?.text || '';
   const insights = result?.actionableInsights || [];
-  const sources = result?.sources || buildSourcesFromText(fullText);
   const sections = buildSections(fullText, insights, query);
+  const intent = buildIntent(query);
+  const sources = mergeSources(
+    result?.sources || buildSourcesFromText(fullText),
+    buildMetricReceipts(query, sections.summary)
+  );
 
   return {
     summary: sections.summary,
     sections,
+    intent,
     detail: fullText,
     sources,
     actionableInsights: insights,
     text: sections.summary,
     follows: sections.follows,
+  };
+}
+
+/** Intent card: how Vision read the question + scope chips */
+export function buildIntent(query = '') {
+  const q = (query || '').toLowerCase();
+  const trucks = fleetSummary.totalTrucks?.toLocaleString?.() || String(fleetSummary.totalTrucks);
+  const gap = fleetSummary.largestGap?.serviceProvider || 'top gap provider';
+
+  if (q.includes('rfid') || q.includes('coverage') || q.includes('unequipp') || q.includes('no rfid') || q.includes('missing rfid')) {
+    return {
+      read: `You're asking how many trucks in your fleet have **no RFID reader fitted** — so you can see where collections can't be confirmed electronically. I'm reading “no RFID reader” as trucks with an empty RFID Reader field, excluding maintenance vehicles.`,
+      chips: [
+        ['Scope', `Fleet · ${trucks} trucks`],
+        ['Metric', 'Trucks missing RFID'],
+        ['Filter', 'Excl. maintenance vehicles'],
+        ['Grain', 'Truck → account'],
+      ],
+    };
+  }
+
+  if (q.includes('sla') || q.includes('overdue') || q.includes('aging') || q.includes('risk')) {
+    return {
+      read: `You're asking which **open work orders** are falling behind SLA — I read “risk / overdue” as cases past the **700-day** age threshold in the Missing WO extract, ranked by case age.`,
+      chips: [
+        ['Scope', `Edmonton AB · ${woSummary.totalWOs} open WOs`],
+        ['Metric', 'Overdue WOs & case age'],
+        ['Window', 'Open backlog'],
+        ['Filter', 'Status = Open · age > 700d'],
+      ],
+    };
+  }
+
+  if (q.includes('edmonton')) {
+    return {
+      read: `You're drilling into **Edmonton AB** — fleet RFID gaps and the open work-order backlog for that segment. I'll stay inside the Edmonton boundary and surface dispatch + unequipped trucks.`,
+      chips: [
+        ['Scope', 'Service Provider · Edmonton AB'],
+        ['Metric', 'RFID gaps + open WOs'],
+        ['Window', 'Current extract'],
+        ['Grain', 'Truck → dispatch'],
+      ],
+    };
+  }
+
+  if (q.includes('dispatch')) {
+    return {
+      read: `You're asking which **dispatch centers** carry the most unresolved work. I'll rank open Missing WOs by dispatch load and flag overloaded queues.`,
+      chips: [
+        ['Scope', `Edmonton AB · ${woSummary.dispatchBreakdown?.length || 0} dispatches`],
+        ['Metric', 'Open WOs by dispatch'],
+        ['Window', 'Current backlog'],
+        ['Filter', 'Status = Open'],
+      ],
+    };
+  }
+
+  if (q.includes('provider') || q.includes('top') || q.includes('fleet size')) {
+    return {
+      read: `You're asking to compare **service providers by fleet size** and RFID coverage — so you can see who dominates volume and where gaps sit. Largest gap focus: **${gap}**.`,
+      chips: [
+        ['Scope', `${fleetSummary.totalProviders} providers · ${trucks} trucks`],
+        ['Metric', 'Fleet size & RFID %'],
+        ['Window', 'Current fleet extract'],
+        ['Grain', 'Provider'],
+      ],
+    };
+  }
+
+  if (q.includes('bulk')) {
+    return {
+      read: `You're asking about the **OBS-Bulk Pickup** backlog — pending bulk pickup orders, where they cluster geographically, and how aged they are.`,
+      chips: [
+        ['Scope', 'Edmonton AB · OBS-Bulk Pickup'],
+        ['Metric', 'Open bulk WOs'],
+        ['Window', 'Current backlog'],
+        ['Grain', 'Address → dispatch'],
+      ],
+    };
+  }
+
+  if (q.includes('executive') || q.includes('summary') || q.includes('overview')) {
+    return {
+      read: `You're asking for an **executive read** across fleet RFID coverage and open work orders — portfolio health, not a single-ticket drill.`,
+      chips: [
+        ['Scope', `Network · ${fleetSummary.totalProviders} providers`],
+        ['Metric', 'Coverage + WO health'],
+        ['Window', 'Current extracts'],
+        ['Grain', 'Portfolio'],
+      ],
+    };
+  }
+
+  return {
+    read: `You're asking for an operational read on **“${truncate(query, 64)}”**. I'll resolve intent against the fleet and Missing WO extracts, enforce Service Provider scope, then assemble evidence.`,
+    chips: [
+      ['Scope', `Service Provider · ${trucks} trucks`],
+      ['Metric', 'Ops signal'],
+      ['Window', 'Current extracts'],
+      ['Grain', 'Provider → truck'],
+    ],
   };
 }
 
@@ -54,8 +160,39 @@ function buildSections(fullText, insights, query) {
   };
 }
 
-/** Compact prose summary — Claude-style paragraphs, not bullet dumps */
+/** Compact prose summary — Claude-style paragraphs with highlighted metric claims */
 function buildSummaryParagraph(fullText, query, kpiInsight) {
+  const q = (query || '').toLowerCase();
+  const providers = fleetSummary.totalProviders;
+  const trucks = fleetSummary.totalTrucks.toLocaleString();
+  const coverage = fleetSummary.rfidCoverage;
+  const unequipped = fleetSummary.trucksWithoutRFID;
+  const gap = fleetSummary.largestGap;
+
+  // RFID / coverage — explicit claims the user expects highlighted
+  if (
+    q.includes('rfid') ||
+    q.includes('coverage') ||
+    q.includes('unequipp') ||
+    q.includes('fleet coverage') ||
+    q.includes('no rfid')
+  ) {
+    return (
+      `Across **${providers} service providers** and **${trucks} trucks**, RFID reader coverage stands at **${coverage}%**. ` +
+      `**${unequipped} unequipped trucks** create a tracking blind spot` +
+      (gap
+        ? ` — largest gap at **${gap.serviceProvider}** (${gap.trucksWithoutRFID} unequipped).`
+        : '.')
+    );
+  }
+
+  if (q.includes('sla') || q.includes('overdue') || q.includes('aging') || q.includes('risk')) {
+    return (
+      `**${woSummary.totalWOs} open work orders** sit at an average case age of **${woSummary.avgCaseAge} days**. ` +
+      `**${woSummary.overdueWOs} overdue cases** exceed the 700-day threshold (oldest **${woSummary.maxCaseAge} days**).`
+    );
+  }
+
   if (!fullText) {
     return 'I reviewed the available fleet and work-order data for this question. Open the detail pane for the full breakdown.';
   }
@@ -73,14 +210,14 @@ function buildSummaryParagraph(fullText, query, kpiInsight) {
       !/^immediate /i.test(l)
   );
 
-  const lead = stripMd(prose[1] || prose[0] || '');
-  const support = stripMd(prose[2] || '');
+  const lead = keepBold(prose[1] || prose[0] || '');
+  const support = keepBold(prose[2] || '');
   const kpiBit = kpiInsight?.dataForWidget
     ? ` Current signal: **${kpiInsight.dataForWidget.value}** (${kpiInsight.dataForWidget.subtitle || kpiInsight.title}).`
     : '';
 
   let para = lead;
-  if (support && support.length > 20 && support !== lead) {
+  if (support && stripMd(support).length > 20 && stripMd(support) !== stripMd(lead)) {
     para = `${lead} ${support}`;
   }
   para = para.replace(/\s+/g, ' ').trim();
@@ -88,12 +225,122 @@ function buildSummaryParagraph(fullText, query, kpiInsight) {
     para += kpiBit;
   }
 
-  // Keep compact
   if (para.length > 420) {
-    para = `${para.slice(0, 417).replace(/\s+\S*$/, '')}…`;
+    const cut = para.slice(0, 417);
+    const lastBold = cut.lastIndexOf('**');
+    para = `${(lastBold > 300 ? cut.slice(0, lastBold) : cut).replace(/\s+\S*$/, '')}…`;
   }
 
   return para || `Operational read on “${truncate(query, 48)}”. See the table and chart below for the detail.`;
+}
+
+/** Receipt metadata for highlighted summary metrics */
+function buildMetricReceipts(query, summary) {
+  const q = (query || '').toLowerCase();
+  const receipts = [];
+
+  const push = (claim, conf, source, computed, note) => {
+    receipts.push({
+      id: `rcpt-${receipts.length}`,
+      claim,
+      confidence: conf,
+      source,
+      computed,
+      note,
+    });
+  };
+
+  if (
+    q.includes('rfid') ||
+    q.includes('coverage') ||
+    q.includes('unequipp') ||
+    q.includes('fleet') ||
+    /\d+\s+service providers/i.test(summary || '')
+  ) {
+    push(
+      `${fleetSummary.totalProviders} service providers`,
+      'high',
+      'Fleet Excel · Providers',
+      `COUNT(DISTINCT service_provider) = ${fleetSummary.totalProviders}`,
+      'Direct count from Customers with Truck and/or Cameras extract.'
+    );
+    push(
+      `${fleetSummary.totalTrucks.toLocaleString()} trucks`,
+      'high',
+      'Fleet Excel · Trucks',
+      `SUM(truck_count) = ${fleetSummary.totalTrucks}`,
+      'Device-logged fleet rows — not estimated.'
+    );
+    push(
+      `${fleetSummary.rfidCoverage}%`,
+      'high',
+      'Fleet Excel · RFID',
+      `trucks_with_rfid ÷ total_trucks × 100 = ${fleetSummary.trucksWithRFID} ÷ ${fleetSummary.totalTrucks} × 100`,
+      'Re-aggregated from truck RFID Reader field (non-empty = equipped).'
+    );
+    push(
+      `${fleetSummary.trucksWithoutRFID} unequipped trucks`,
+      'high',
+      'Fleet Excel · RFID gaps',
+      `COUNT(RFID Reader IS EMPTY) = ${fleetSummary.trucksWithoutRFID}`,
+      'Empty RFID Reader field; maintenance vehicles excluded in intent filter.'
+    );
+    if (fleetSummary.largestGap) {
+      push(
+        fleetSummary.largestGap.serviceProvider,
+        'high',
+        'Fleet Excel · Largest gap',
+        `${fleetSummary.largestGap.serviceProvider}: ${fleetSummary.largestGap.trucksWithoutRFID} unequipped of ${fleetSummary.largestGap.truckCount}`,
+        'Provider with max unequipped truck count.'
+      );
+    }
+  }
+
+  if (q.includes('sla') || q.includes('overdue') || q.includes('aging') || q.includes('risk')) {
+    push(
+      `${woSummary.totalWOs} open work orders`,
+      'high',
+      'Missing WO Excel',
+      `COUNT(*) WHERE status=Open = ${woSummary.totalWOs}`,
+      'All rows in Missing WO extract for Edmonton AB.'
+    );
+    push(
+      `${woSummary.avgCaseAge} days`,
+      'high',
+      'Missing WO Excel · Case age',
+      `AVG(case_age) = ${woSummary.avgCaseAge}`,
+      'Mean of open case ages in days.'
+    );
+    push(
+      `${woSummary.overdueWOs} overdue cases`,
+      'high',
+      'Missing WO Excel · SLA',
+      `COUNT(case_age > 700) = ${woSummary.overdueWOs}`,
+      '700-day threshold applied as SLA overdue rule.'
+    );
+    push(
+      `${woSummary.maxCaseAge} days`,
+      'high',
+      'Missing WO Excel · Oldest',
+      `MAX(case_age) = ${woSummary.maxCaseAge}`,
+      'Oldest open work order in the extract.'
+    );
+  }
+
+  return receipts;
+}
+
+function mergeSources(base = [], receipts = []) {
+  const out = [...base];
+  receipts.forEach((r) => {
+    const idx = out.findIndex((s) => s.claim.toLowerCase() === r.claim.toLowerCase());
+    if (idx >= 0) {
+      out[idx] = { ...out[idx], ...r };
+    } else {
+      out.push(r);
+    }
+  });
+  return out;
 }
 
 function buildTable(barInsight, insights, q) {
@@ -432,6 +679,14 @@ function stripMd(s) {
   return String(s || '')
     .replace(/\*\*/g, '')
     .replace(/^[_*]+|[_*]+$/g, '')
+    .trim();
+}
+
+/** Strip heading markers but preserve **claim** markers for cite hover */
+function keepBold(s) {
+  return String(s || '')
+    .replace(/^#{1,3}\s+/, '')
+    .replace(/^[_]+|[_]+$/g, '')
     .trim();
 }
 

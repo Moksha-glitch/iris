@@ -177,6 +177,7 @@ export default function AgenticChat({
           summary: result.summary,
           detail: result.detail,
           sections: result.sections || null,
+          intent: result.intent || null,
           sources: result.sources || [],
           insights: result.actionableInsights || [],
           follows: result.follows || result.sections?.follows || [],
