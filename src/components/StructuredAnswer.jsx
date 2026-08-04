@@ -26,10 +26,30 @@ export default function StructuredAnswer({
     return n;
   };
 
-  const pinChart = () => {
-    const insight = insights.find((i) => i.dataForWidget?.chartType === 'bar');
+  const pinToDashboard = () => {
+    const insight =
+      insights.find((i) => i.dataForWidget?.chartType === 'bar') ||
+      insights.find((i) => i.dataForWidget?.chartType === 'kpi');
     if (!insight?.dataForWidget) {
-      onToast?.('No chart widget available for this answer');
+      // Build a chart widget from the rendered chart when no insight widget exists
+      if (!sections.chart?.data?.length) {
+        onToast?.('No chart widget available for this answer');
+        return;
+      }
+      const id = `chart-${sections.chart.title}`;
+      if (dashboardWidgets.some((w) => w.id === id)) {
+        onToast?.('Already on dashboard');
+        return;
+      }
+      addWidget({
+        id,
+        chartType: 'bar',
+        title: sections.chart.title,
+        data: sections.chart.data.map((d) => ({ name: d.l, value: d.v })),
+        colors: ['#3d4f8c', '#C0362C'],
+      });
+      onWidgetPinned?.();
+      onToast?.(`Pinned “${sections.chart.title}” to dashboard`);
       return;
     }
     if (dashboardWidgets.some((w) => w.id === insight.id)) {
@@ -41,7 +61,7 @@ export default function StructuredAnswer({
     onToast?.(`Pinned “${insight.title}” to dashboard`);
   };
 
-  const pinReport = () => {
+  const pinTableReport = () => {
     if (!sections.table) {
       onToast?.('No table to add to reports');
       return;
@@ -67,6 +87,31 @@ export default function StructuredAnswer({
       })),
     });
     onToast?.('Added table to Reports');
+  };
+
+  const pinChartReport = () => {
+    if (!sections.chart?.data?.length) {
+      onToast?.('No chart to add to reports');
+      return;
+    }
+    const id = `report-chart-${sections.chart.title}`;
+    addReport({
+      id,
+      title: sections.chart.title,
+      query: '',
+      type: 'structured-chart',
+      persona: 'serviceProvider',
+      createdAt: Date.now(),
+      rows: sections.chart.data.map((d) => ({
+        serviceProvider: d.l,
+        metric: d.l,
+        value: String(d.v) + (sections.chart.unit || ''),
+        confidence: d.c === 'hi' ? 'high' : 'prov',
+        source: sections.chart.title,
+        note: sections.chart.cap || 'Chart series',
+      })),
+    });
+    onToast?.('Added chart to Reports');
   };
 
   // Chat: compact summary + suggested questions only
@@ -134,10 +179,10 @@ export default function StructuredAnswer({
           </div>
           <AnswerTable table={sections.table} />
           <div className="sa-comp-actions">
-            <button type="button" className="sa-cbtn" onClick={pinChart}>
+            <button type="button" className="sa-cbtn" onClick={pinToDashboard}>
               + Add to dashboard
             </button>
-            <button type="button" className="sa-cbtn" onClick={pinReport}>
+            <button type="button" className="sa-cbtn" onClick={pinTableReport}>
               + Add to reports
             </button>
           </div>
@@ -151,6 +196,14 @@ export default function StructuredAnswer({
             {sections.chart.title}
           </div>
           <AnswerChart chart={sections.chart} />
+          <div className="sa-comp-actions">
+            <button type="button" className="sa-cbtn" onClick={pinToDashboard}>
+              + Add to dashboard
+            </button>
+            <button type="button" className="sa-cbtn" onClick={pinChartReport}>
+              + Add to reports
+            </button>
+          </div>
         </section>
       )}
 
