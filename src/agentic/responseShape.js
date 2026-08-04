@@ -39,102 +39,92 @@ export function shapeAgentResponse(result, query = '') {
 
 /** Intent card: how Vision read the question + scope chips */
 export function buildIntent(query = '') {
-  const q = (query || '').toLowerCase();
+  const raw = String(query || '').trim();
+  const q = raw.toLowerCase();
   const trucks = fleetSummary.totalTrucks?.toLocaleString?.() || String(fleetSummary.totalTrucks);
   const gap = fleetSummary.largestGap?.serviceProvider || 'top gap provider';
 
-  if (q.includes('rfid') || q.includes('coverage') || q.includes('unequipp') || q.includes('no rfid') || q.includes('missing rfid')) {
-    return {
-      read: `You're asking how many trucks in your fleet have **no RFID reader fitted** — so you can see where collections can't be confirmed electronically. I'm reading “no RFID reader” as trucks with an empty RFID Reader field, excluding maintenance vehicles.`,
-      chips: [
-        ['Scope', `Fleet · ${trucks} trucks`],
-        ['Metric', 'Trucks missing RFID'],
-        ['Filter', 'Excl. maintenance vehicles'],
-        ['Grain', 'Truck → account'],
-      ],
-    };
-  }
+  let read;
+  let chips;
 
-  if (q.includes('sla') || q.includes('overdue') || q.includes('aging') || q.includes('risk')) {
-    return {
-      read: `You're asking which **open work orders** are falling behind SLA — I read “risk / overdue” as cases past the **700-day** age threshold in the Missing WO extract, ranked by case age.`,
-      chips: [
-        ['Scope', `Edmonton AB · ${woSummary.totalWOs} open WOs`],
-        ['Metric', 'Overdue WOs & case age'],
-        ['Window', 'Open backlog'],
-        ['Filter', 'Status = Open · age > 700d'],
-      ],
-    };
-  }
-
-  if (q.includes('edmonton')) {
-    return {
-      read: `You're drilling into **Edmonton AB** — fleet RFID gaps and the open work-order backlog for that segment. I'll stay inside the Edmonton boundary and surface dispatch + unequipped trucks.`,
-      chips: [
-        ['Scope', 'Service Provider · Edmonton AB'],
-        ['Metric', 'RFID gaps + open WOs'],
-        ['Window', 'Current extract'],
-        ['Grain', 'Truck → dispatch'],
-      ],
-    };
-  }
-
-  if (q.includes('dispatch')) {
-    return {
-      read: `You're asking which **dispatch centers** carry the most unresolved work. I'll rank open Missing WOs by dispatch load and flag overloaded queues.`,
-      chips: [
-        ['Scope', `Edmonton AB · ${woSummary.dispatchBreakdown?.length || 0} dispatches`],
-        ['Metric', 'Open WOs by dispatch'],
-        ['Window', 'Current backlog'],
-        ['Filter', 'Status = Open'],
-      ],
-    };
-  }
-
-  if (q.includes('provider') || q.includes('top') || q.includes('fleet size')) {
-    return {
-      read: `You're asking to compare **service providers by fleet size** and RFID coverage — so you can see who dominates volume and where gaps sit. Largest gap focus: **${gap}**.`,
-      chips: [
-        ['Scope', `${fleetSummary.totalProviders} providers · ${trucks} trucks`],
-        ['Metric', 'Fleet size & RFID %'],
-        ['Window', 'Current fleet extract'],
-        ['Grain', 'Provider'],
-      ],
-    };
-  }
-
-  if (q.includes('bulk')) {
-    return {
-      read: `You're asking about the **OBS-Bulk Pickup** backlog — pending bulk pickup orders, where they cluster geographically, and how aged they are.`,
-      chips: [
-        ['Scope', 'Edmonton AB · OBS-Bulk Pickup'],
-        ['Metric', 'Open bulk WOs'],
-        ['Window', 'Current backlog'],
-        ['Grain', 'Address → dispatch'],
-      ],
-    };
-  }
-
-  if (q.includes('executive') || q.includes('summary') || q.includes('overview')) {
-    return {
-      read: `You're asking for an **executive read** across fleet RFID coverage and open work orders — portfolio health, not a single-ticket drill.`,
-      chips: [
-        ['Scope', `Network · ${fleetSummary.totalProviders} providers`],
-        ['Metric', 'Coverage + WO health'],
-        ['Window', 'Current extracts'],
-        ['Grain', 'Portfolio'],
-      ],
-    };
-  }
-
-  return {
-    read: `You're asking for an operational read on **“${truncate(query, 64)}”**. I'll resolve intent against the fleet and Missing WO extracts, enforce Service Provider scope, then assemble evidence.`,
-    chips: [
+  // Prefer specific topics before broad RFID/Edmonton matches
+  if (q.includes('bulk') || q.includes('obs-bulk') || (q.includes('pickup') && q.includes('backlog'))) {
+    read =
+      'I read this as the **OBS-Bulk Pickup** backlog — pending bulk pickup orders, geographic clusters, and case age.';
+    chips = [
+      ['Scope', 'Edmonton AB · OBS-Bulk Pickup'],
+      ['Metric', 'Open bulk WOs'],
+      ['Window', 'Current backlog'],
+      ['Grain', 'Address → dispatch'],
+    ];
+  } else if (q.includes('rfid') || q.includes('coverage') || q.includes('unequipp') || q.includes('no rfid') || q.includes('missing rfid')) {
+    read =
+      'I read this as trucks with **no RFID reader fitted** (empty RFID Reader field), excluding maintenance vehicles — so you can see where collections can’t be confirmed electronically.';
+    chips = [
+      ['Scope', `Fleet · ${trucks} trucks`],
+      ['Metric', 'Trucks missing RFID'],
+      ['Filter', 'Excl. maintenance vehicles'],
+      ['Grain', 'Truck → account'],
+    ];
+  } else if (q.includes('sla') || q.includes('overdue') || q.includes('aging') || q.includes('risk')) {
+    read =
+      'I read “risk / overdue” as **open work orders** past the **700-day** age threshold in the Missing WO extract, ranked by case age.';
+    chips = [
+      ['Scope', `Edmonton AB · ${woSummary.totalWOs} open WOs`],
+      ['Metric', 'Overdue WOs & case age'],
+      ['Window', 'Open backlog'],
+      ['Filter', 'Status = Open · age > 700d'],
+    ];
+  } else if (q.includes('edmonton')) {
+    read =
+      'I read this as a drill into **Edmonton AB** — fleet RFID gaps and the open work-order backlog for that segment, with dispatch + unequipped trucks.';
+    chips = [
+      ['Scope', 'Service Provider · Edmonton AB'],
+      ['Metric', 'RFID gaps + open WOs'],
+      ['Window', 'Current extract'],
+      ['Grain', 'Truck → dispatch'],
+    ];
+  } else if (q.includes('dispatch')) {
+    read =
+      'I read this as ranking **dispatch centers** by unresolved Missing WO load and flagging overloaded queues.';
+    chips = [
+      ['Scope', `Edmonton AB · ${woSummary.dispatchBreakdown?.length || 0} dispatches`],
+      ['Metric', 'Open WOs by dispatch'],
+      ['Window', 'Current backlog'],
+      ['Filter', 'Status = Open'],
+    ];
+  } else if (q.includes('provider') || q.includes('top') || q.includes('fleet size')) {
+    read = `I read this as comparing **service providers by fleet size** and RFID coverage. Largest gap focus: **${gap}**.`;
+    chips = [
+      ['Scope', `${fleetSummary.totalProviders} providers · ${trucks} trucks`],
+      ['Metric', 'Fleet size & RFID %'],
+      ['Window', 'Current fleet extract'],
+      ['Grain', 'Provider'],
+    ];
+  } else if (q.includes('executive') || q.includes('summary') || q.includes('overview')) {
+    read =
+      'I read this as an **executive overview** across fleet RFID coverage and open work orders — portfolio health, not a single-ticket drill.';
+    chips = [
+      ['Scope', `Network · ${fleetSummary.totalProviders} providers`],
+      ['Metric', 'Coverage + WO health'],
+      ['Window', 'Current extracts'],
+      ['Grain', 'Portfolio'],
+    ];
+  } else {
+    read =
+      'I’ll resolve intent against the fleet and Missing WO extracts, enforce Service Provider scope, then assemble evidence.';
+    chips = [
       ['Scope', `Service Provider · ${trucks} trucks`],
       ['Metric', 'Ops signal'],
       ['Window', 'Current extracts'],
       ['Grain', 'Provider → truck'],
-    ],
+    ];
+  }
+
+  return {
+    query: raw,
+    read,
+    chips,
   };
 }
 
@@ -148,7 +138,7 @@ function buildSections(fullText, insights, query) {
   const chart = buildChart(barInsight, q);
   const analysis = buildAnalysisParagraphs(fullText, insights);
   const recommendations = buildRecommendations(fullText, insights, q);
-  const follows = buildFollowUps(q);
+  const follows = buildFollowUps(query);
 
   return {
     summary,
@@ -572,40 +562,87 @@ function buildRecommendations(fullText, insights, q) {
   return recs.slice(0, 3);
 }
 
-function buildFollowUps(q) {
-  if (q.includes('rfid') || q.includes('coverage') || q.includes('unequipp')) {
-    return [
+function normalizeQuestion(text = '') {
+  return String(text)
+    .toLowerCase()
+    .replace(/[?“”"']/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildFollowUps(query = '') {
+  const q = (query || '').toLowerCase();
+  const current = normalizeQuestion(query);
+
+  let pool;
+  if (q.includes('bulk') || q.includes('obs-bulk') || (q.includes('pickup') && q.includes('backlog'))) {
+    pool = [
+      'Which dispatch centers handle the most OBS-Bulk Pickup work orders?',
+      'List the 5 oldest open work orders',
+      'Show overdue work orders grouped by request type',
+    ];
+  } else if (
+    (q.includes('edmonton') && (q.includes('rfid') || q.includes('missing') || q.includes('unequipp'))) ||
+    (q.includes('trucks in edmonton') && q.includes('rfid'))
+  ) {
+    // Already asked Edmonton RFID gaps — offer adjacent drills, not the same question
+    pool = [
+      'Which providers have the largest RFID gaps?',
+      "What's the fleet RFID coverage gap across all service providers?",
+      'Show overdue work orders for Edmonton AB',
+    ];
+  } else if (q.includes('rfid') || q.includes('coverage') || q.includes('unequipp')) {
+    pool = [
       'Which trucks in Edmonton AB are missing RFID readers?',
       'Which providers have the largest RFID gaps?',
       'Give me an executive summary of fleet and work orders',
     ];
-  }
-  if (q.includes('sla') || q.includes('overdue') || q.includes('aging')) {
-    return [
+  } else if (q.includes('sla') || q.includes('overdue') || q.includes('aging')) {
+    pool = [
       'List the 5 oldest open work orders',
-      "What's the OBS-Bulk Pickup backlog?",
+      "What's the OBS-Bulk Pickup backlog, and where are the open orders clustered?",
       'Which dispatch centers have the most unresolved work orders?',
     ];
-  }
-  if (q.includes('edmonton')) {
-    return [
+  } else if (q.includes('edmonton')) {
+    pool = [
       'Which trucks in Edmonton AB are missing RFID readers?',
       'Show overdue work orders for Edmonton AB',
       'Which dispatch centers have the most unresolved work orders?',
     ];
-  }
-  if (q.includes('provider') || q.includes('top') || q.includes('fleet size')) {
-    return [
-      "What's the fleet RFID coverage gap?",
+  } else if (q.includes('provider') || q.includes('top') || q.includes('fleet size')) {
+    pool = [
+      "What's the fleet RFID coverage gap across all service providers?",
       'Which providers have the largest RFID gaps?',
       'Deep dive into Edmonton AB fleet and work orders',
     ];
+  } else {
+    pool = [
+      "What's the fleet RFID coverage gap across all service providers?",
+      'Which open work orders pose the highest SLA risk?',
+      'Deep dive into Edmonton AB fleet and work orders',
+    ];
   }
-  return [
-    "What's the fleet RFID coverage gap?",
-    'Which work orders pose the highest SLA risk?',
-    'Deep dive into Edmonton AB fleet and work orders',
+
+  const fallback = [
+    'Which providers have the largest RFID gaps?',
+    'Which dispatch centers have the most unresolved work orders?',
+    'List the 5 oldest open work orders',
+    'Give me an executive summary of fleet and work orders',
   ];
+
+  const seen = new Set();
+  const unique = [];
+  for (const item of [...pool, ...fallback]) {
+    const key = normalizeQuestion(item);
+    if (!key || key === current || seen.has(key)) continue;
+    // Also drop near-duplicates of the current ask (subset match either way)
+    if (current && (key.includes(current) || current.includes(key))) continue;
+    seen.add(key);
+    unique.push(item);
+    if (unique.length >= 3) break;
+  }
+  return unique;
 }
 
 function emphasizeKeyPhrases(text) {

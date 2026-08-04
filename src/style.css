@@ -2796,6 +2796,20 @@ input:focus-visible,
   box-shadow: var(--shadow-sm);
 }
 
+.ap-intent-query {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: none;
+  border-left: 3px solid #3d4f8c;
+  border-radius: 0 6px 6px 0;
+  background: #fff;
+  color: #1a1a2e;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  font-style: normal;
+}
+
 .ap-intent-lbl {
   display: flex;
   align-items: center;

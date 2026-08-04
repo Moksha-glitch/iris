@@ -191,6 +191,11 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
             <span className="ap-intent-dot" aria-hidden />
             How I read your question
           </div>
+          {(intent.query || block.query) && (
+            <blockquote className="ap-intent-query">
+              {intent.query || block.query}
+            </blockquote>
+          )}
           <div className="ap-intent-read">
             <FormattedReply text={intent.read} sources={sources} mode="detail" />
           </div>

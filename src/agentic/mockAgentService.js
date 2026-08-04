@@ -299,6 +299,32 @@ function routeQuery(query, persona) {
     };
   }
 
+  // --- Bulk Pickup / OBS (before Edmonton / geo so backlog questions stay on-topic) ---
+  if (q.includes('bulk') || q.includes('obs-bulk') || (q.includes('pickup') && (q.includes('backlog') || q.includes('obs')))) {
+    const bulkWOs = missingWorkOrders.filter(w => w.requestType === 'OBS-Bulk Pickup');
+    return {
+      text: `**OBS-Bulk Pickup Backlog Analysis**\n\n**${bulkWOs.length} pending bulk pickup orders:**\n${bulkWOs.map((w, i) => `${i + 1}. WO #${w.woNumber} — ${w.address} — ${w.caseAge} days old (Dispatch: ${w.dispatchNumber})`).join('\n')}\n\n**Pattern detected:** ${bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length} of ${bulkWOs.length} orders are in the Dallas TX area. Consider batch dispatching.\n\nAverage age: ${bulkWOs.length ? Math.round(bulkWOs.reduce((s, w) => s + w.caseAge, 0) / bulkWOs.length) : 0} days.`,
+      actionableInsights: [
+        {
+          id: 'insight-bulk-cluster',
+          title: 'Dallas TX Clustering',
+          type: 'geographic',
+          expandedText: `**Geographic Cluster Alert**\n\n${bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length} bulk pickup WOs in the Dallas TX corridor. Batch dispatch could clear multiple WOs in a single route (~40% fewer trips).`,
+          dataForWidget: {
+            chartType: 'bar',
+            title: 'Bulk Pickup by Location',
+            data: [
+              { name: 'Dallas TX', count: bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length },
+              { name: 'Edmonton AB', count: bulkWOs.filter(w => /edmonton/i.test(w.address)).length },
+              { name: 'Other', count: bulkWOs.filter(w => !/dallas|mockingbird|pulaski|edmonton/i.test(w.address)).length },
+            ],
+            colors: ['#B45309'],
+          },
+        },
+      ],
+    };
+  }
+
   // --- Edmonton / Specific Provider ---
   if (q.includes('edmonton')) {
     return {
@@ -328,32 +354,6 @@ function routeQuery(query, persona) {
             subtitle: `${edmonton?.trucksWithRFID || 0} RFID-equipped (${edmontonCoverage}%)`,
             trend: 'stable',
             delta: `${edmonton?.trucksWithoutRFID || 0} need RFID`,
-          },
-        },
-      ],
-    };
-  }
-
-  // --- Bulk Pickup / OBS ---
-  if (q.includes('bulk') || q.includes('obs') || q.includes('pickup')) {
-    const bulkWOs = missingWorkOrders.filter(w => w.requestType === 'OBS-Bulk Pickup');
-    return {
-      text: `**OBS-Bulk Pickup Backlog Analysis**\n\n**${bulkWOs.length} pending bulk pickup orders:**\n${bulkWOs.map((w, i) => `${i + 1}. WO #${w.woNumber} — ${w.address} — ${w.caseAge} days old (Dispatch: ${w.dispatchNumber})`).join('\n')}\n\n**Pattern detected:** ${bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length} of ${bulkWOs.length} orders are in the Dallas TX area. Consider batch dispatching.\n\nAverage age: ${bulkWOs.length ? Math.round(bulkWOs.reduce((s, w) => s + w.caseAge, 0) / bulkWOs.length) : 0} days.`,
-      actionableInsights: [
-        {
-          id: 'insight-bulk-cluster',
-          title: 'Dallas TX Clustering',
-          type: 'geographic',
-          expandedText: `**Geographic Cluster Alert**\n\n${bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length} bulk pickup WOs in the Dallas TX corridor. Batch dispatch could clear multiple WOs in a single route (~40% fewer trips).`,
-          dataForWidget: {
-            chartType: 'bar',
-            title: 'Bulk Pickup by Location',
-            data: [
-              { name: 'Dallas TX', count: bulkWOs.filter(w => /dallas|mockingbird|pulaski/i.test(w.address)).length },
-              { name: 'Edmonton AB', count: bulkWOs.filter(w => /edmonton/i.test(w.address)).length },
-              { name: 'Other', count: bulkWOs.filter(w => !/dallas|mockingbird|pulaski|edmonton/i.test(w.address)).length },
-            ],
-            colors: ['#B45309'],
           },
         },
       ],
