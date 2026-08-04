@@ -9,12 +9,12 @@ import {
   reportContext,
 } from '../agentic';
 import PredictiveQuestions from './PredictiveQuestions';
-import FormattedReply from './FormattedReply';
+import StructuredAnswer from './StructuredAnswer';
 
 const { fleetSummary, woSummary } = reportContext;
 
 const VIEW_HINTS = {
-  command: 'Summaries stay in chat · pin insights to the Home dashboard',
+  command: 'Summary in chat · full Table / Chart / Analysis in detail',
   table: 'Directory stays available from the sidebar',
   reports: 'Tabular reports pinned from analysis insights',
 };
@@ -33,6 +33,7 @@ export default function AgenticChat({
   activeView = 'command',
   onToast,
   onOpenAnalysis,
+  askRef,
 }) {
   const {
     activePersona,
@@ -135,8 +136,10 @@ export default function AgenticChat({
         workflowSteps: steps,
         summary: '',
         detail: '',
+        sections: null,
         sources: [],
         insights: [],
+        follows: [],
         isStreaming: true,
         timestamp: Date.now(),
       };
@@ -173,14 +176,17 @@ export default function AgenticChat({
           workflowSteps: doneSteps,
           summary: result.summary,
           detail: result.detail,
+          sections: result.sections || null,
           sources: result.sources || [],
           insights: result.actionableInsights || [],
+          follows: result.follows || result.sections?.follows || [],
           isStreaming: false,
           timestamp: Date.now(),
         };
 
         updateLastMessage({
           text: result.summary || result.text,
+          sections: result.sections || null,
           sources: result.sources || [],
           analysisId,
           isStreaming: false,
@@ -221,6 +227,14 @@ export default function AgenticChat({
       onOpenAnalysis,
     ]
   );
+
+  useEffect(() => {
+    if (!askRef) return undefined;
+    askRef.current = runQuery;
+    return () => {
+      if (askRef.current === runQuery) askRef.current = null;
+    };
+  }, [askRef, runQuery]);
 
   const handleClear = () => {
     if (!confirmClear) {
@@ -402,10 +416,18 @@ export default function AgenticChat({
                     {currentPersona.icon}
                   </div>
                   <div className="ac-msg-content">
-                    {msg.text ? (
+                    {msg.text || msg.sections ? (
                       <div className="ac-msg-text">
-                        <FormattedReply
-                          text={msg.text}
+                        <StructuredAnswer
+                          sections={
+                            msg.sections ||
+                            analysisHistory.find((a) => a.id === msg.analysisId)?.sections || {
+                              summary: msg.text,
+                              follows:
+                                analysisHistory.find((a) => a.id === msg.analysisId)?.follows ||
+                                [],
+                            }
+                          }
                           sources={
                             msg.sources ||
                             analysisHistory.find((a) => a.id === msg.analysisId)?.sources ||
@@ -413,6 +435,8 @@ export default function AgenticChat({
                             []
                           }
                           mode="chat"
+                          compact
+                          onAsk={runQuery}
                           onTraverse={(claim) => {
                             if (msg.analysisId) openHistoryItem(msg.analysisId);
                             else if (!activeAnalysis) {

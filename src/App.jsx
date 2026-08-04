@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import CommandCenter from './components/CommandCenter';
 import IntelligenceTable from './components/IntelligenceTable';
@@ -17,6 +17,7 @@ function AppShell() {
   const [resolvedNodes, setResolvedNodes] = useState([]);
   const [highlightId, setHighlightId] = useState(null);
   const [toast, setToast] = useState('');
+  const askRef = useRef(null);
 
   const showToast = useCallback((msg) => setToast(msg), []);
   const showAnalysis = Boolean(activeAnalysis);
@@ -58,6 +59,11 @@ function AppShell() {
     setActiveView('command');
   }, []);
 
+  const handleAsk = useCallback((query) => {
+    setActiveView('command');
+    askRef.current?.(query);
+  }, []);
+
   const handleWidgetPinned = useCallback(() => {
     clearAnalysis();
     setActiveView('command');
@@ -78,6 +84,7 @@ function AppShell() {
             activeView={activeView}
             onToast={showToast}
             onOpenAnalysis={goToCommand}
+            askRef={askRef}
           />
         </aside>
 
@@ -101,6 +108,7 @@ function AppShell() {
               onClose={closeAnalysis}
               onToast={showToast}
               onWidgetPinned={handleWidgetPinned}
+              onAsk={handleAsk}
               variant="center"
             />
           ) : activeView === 'command' ? (

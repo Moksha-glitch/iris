@@ -1,23 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import WorkflowTrace from './WorkflowTrace';
-import FormattedReply, { claimAnchorId } from './FormattedReply';
-import AnalysisDataTable from './AnalysisDataTable';
+import { claimAnchorId } from './FormattedReply';
+import StructuredAnswer from './StructuredAnswer';
 import { getPersonaConfig, useChatContext } from '../agentic';
 
 /**
- * Center dashboard replacement: stacked BTS + detail per answered question.
+ * Center dashboard replacement: stacked BTS + structured answer per question.
  */
 export default function AnalysisPanel({
   analysis,
   onClose,
   onToast,
   onWidgetPinned,
+  onAsk,
   variant = 'center',
 }) {
   const { analysisHistory, scrollToAnalysisId, scrollToken } = useChatContext();
   const bodyRef = useRef(null);
 
-  // Stack: history + current streaming analysis if not yet stored
   const blocks = (() => {
     const list = [...analysisHistory];
     if (analysis?.id && !list.some((a) => a.id === analysis.id)) {
@@ -31,7 +31,6 @@ export default function AnalysisPanel({
     return list;
   })();
 
-  // Scroll to a past question block
   useEffect(() => {
     if (!scrollToAnalysisId || !bodyRef.current) return undefined;
     const el = bodyRef.current.querySelector(`#analysis-block-${scrollToAnalysisId}`);
@@ -45,7 +44,6 @@ export default function AnalysisPanel({
     };
   }, [scrollToAnalysisId, scrollToken]);
 
-  // Scroll to a source claim within the active analysis
   useEffect(() => {
     if (!analysis?.focusedClaim || !bodyRef.current) return undefined;
 
@@ -55,14 +53,14 @@ export default function AnalysisPanel({
 
     let target = null;
     if (claim === '__detail__') {
-      target = root.querySelector('.ap-full-analysis') || root.querySelector('#ap-full-analysis');
+      target = root.querySelector('.sa-root') || root.querySelector('.ap-full-analysis');
     } else {
       target =
         root.querySelector(`#${claimAnchorId(claim)}`) ||
         [...root.querySelectorAll('[data-claim]')].find(
           (el) => el.getAttribute('data-claim')?.toLowerCase() === claim.toLowerCase()
         ) ||
-        root.querySelector('.ap-full-analysis');
+        root.querySelector('.sa-summary');
     }
 
     if (!target) return undefined;
@@ -83,11 +81,11 @@ export default function AnalysisPanel({
       <div className="ap-panel">
         <header className="ap-header">
           <div>
-            <div className="ap-eyebrow">Behind the scenes</div>
+            <div className="ap-eyebrow">Answer</div>
             <h2 className="ap-title">Evidence & detail</h2>
             <p className="ap-query">
-              {blocks.length} answered question{blocks.length === 1 ? '' : 's'} · click chat history
-              to jump
+              {blocks.length} answered question{blocks.length === 1 ? '' : 's'} · Summary → Table →
+              Chart → Analysis → Recommendation
             </p>
           </div>
           <button
@@ -109,6 +107,7 @@ export default function AnalysisPanel({
               isLatest={index === blocks.length - 1}
               onToast={onToast}
               onWidgetPinned={onWidgetPinned}
+              onAsk={onAsk}
             />
           ))}
         </div>
@@ -117,13 +116,18 @@ export default function AnalysisPanel({
   );
 }
 
-function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned }) {
+function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned, onAsk }) {
   const persona = getPersonaConfig(block.persona || 'serviceProvider');
   const steps = block.workflowSteps || [];
   const sources = block.sources || [];
   const insights = block.insights || [];
   const focused = block.focusedClaim;
   const blockId = block.id || 'current';
+  const sections =
+    block.sections ||
+    (block.summary
+      ? { summary: block.summary, follows: block.follows || [] }
+      : null);
 
   return (
     <article
@@ -183,21 +187,18 @@ function AnalysisBlock({ block, isLatest, onToast, onWidgetPinned }) {
         </section>
       )}
 
-      {block.detail && (
+      {sections && (
         <section className="ap-section ap-full-analysis" id={isLatest ? 'ap-full-analysis' : undefined}>
-          <h3 className="ap-section-title">Full analysis</h3>
-          <div className="ap-detail">
-            <FormattedReply text={block.detail} sources={sources} mode="detail" />
-          </div>
+          <StructuredAnswer
+            sections={sections}
+            sources={sources}
+            insights={insights}
+            mode="detail"
+            onAsk={onAsk}
+            onToast={onToast}
+            onWidgetPinned={onWidgetPinned}
+          />
         </section>
-      )}
-
-      {(insights.length > 0 || sources.length > 0) && (
-        <AnalysisDataTable
-          block={block}
-          onToast={onToast}
-          onWidgetPinned={onWidgetPinned}
-        />
       )}
     </article>
   );
