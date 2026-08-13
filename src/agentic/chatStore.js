@@ -2,12 +2,102 @@
 // Chat Context — Chat + Dashboard widgets + Reports + Analysis history
 // ============================================================
 
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 
 const ChatContext = createContext(null);
 
+function makeSession(persona, id) {
+  const now = Date.now();
+  return {
+    id: id || `session-${now}`,
+    title: 'New chat',
+    persona,
+    chatHistory: [],
+    analysisHistory: [],
+    usedQueries: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function titleFromMessages(chatHistory, analysisHistory) {
+  const user = (chatHistory || []).find((m) => m.type === 'user' && m.text);
+  if (user?.text) return user.text.trim();
+  const query = (analysisHistory || []).find((a) => a.query)?.query;
+  return query?.trim() || 'New chat';
+}
+
+function isSessionEmpty(session) {
+  if (!session) return true;
+  return (
+    (session.chatHistory?.length || 0) === 0 && (session.analysisHistory?.length || 0) === 0
+  );
+}
+
+function captureActive(state) {
+  const prev = state.sessions.find((s) => s.id === state.activeSessionId);
+  return {
+    id: state.activeSessionId,
+    title: titleFromMessages(state.chatHistory, state.analysisHistory),
+    persona: state.activePersona,
+    chatHistory: state.chatHistory,
+    analysisHistory: state.analysisHistory,
+    usedQueries: state.usedQueries,
+    createdAt: prev?.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+function persistActive(state) {
+  const snap = captureActive(state);
+  const idx = state.sessions.findIndex((s) => s.id === snap.id);
+  const sessions =
+    idx >= 0
+      ? state.sessions.map((s, i) => (i === idx ? { ...s, ...snap } : s))
+      : [snap, ...state.sessions];
+  return { ...state, sessions };
+}
+
+function hydrateSession(state, session) {
+  const analysisHistory = session.analysisHistory || [];
+  const lastDone = [...analysisHistory].reverse().find((a) => !a.isStreaming);
+  return {
+    ...state,
+    activeSessionId: session.id,
+    activePersona: session.persona || state.activePersona,
+    chatHistory: session.chatHistory || [],
+    analysisHistory,
+    usedQueries: session.usedQueries || [],
+    activeAnalysis: lastDone || analysisHistory[analysisHistory.length - 1] || null,
+    scrollToAnalysisId: null,
+  };
+}
+
+const AUTH_STORAGE_KEY = 'vision-ai-auth';
+
+function loadAuth() {
+  try {
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return { isAuthenticated: false, activePersona: 'serviceProvider' };
+    const parsed = JSON.parse(raw);
+    const persona = parsed?.persona;
+    if (parsed?.authenticated && ['leadership', 'serviceProvider', 'segments'].includes(persona)) {
+      return { isAuthenticated: true, activePersona: persona };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { isAuthenticated: false, activePersona: 'serviceProvider' };
+}
+
+const savedAuth = loadAuth();
+const INITIAL_SESSION = makeSession(savedAuth.activePersona, 'session-initial');
+
 const initialState = {
-  activePersona: 'serviceProvider',
+  isAuthenticated: savedAuth.isAuthenticated,
+  activePersona: savedAuth.activePersona,
+  activeSessionId: INITIAL_SESSION.id,
+  sessions: [INITIAL_SESSION],
   chatHistory: [],
   dashboardWidgets: [],
   usedQueries: [],
@@ -24,14 +114,14 @@ const initialState = {
 function chatReducer(state, action) {
   switch (action.type) {
     case 'SET_PERSONA':
-      return { ...state, activePersona: action.payload, usedQueries: [] };
+      return persistActive({ ...state, activePersona: action.payload, usedQueries: [] });
 
     case 'ADD_MESSAGE': {
       const msg = {
         id: action.payload.id || `msg-${Date.now()}-${state.chatHistory.length}`,
         ...action.payload,
       };
-      return { ...state, chatHistory: [...state.chatHistory, msg] };
+      return persistActive({ ...state, chatHistory: [...state.chatHistory, msg] });
     }
 
     case 'UPDATE_LAST_MESSAGE': {
@@ -40,11 +130,11 @@ function chatReducer(state, action) {
       if (lastIdx >= 0) {
         updated[lastIdx] = { ...updated[lastIdx], ...action.payload };
       }
-      return { ...state, chatHistory: updated };
+      return persistActive({ ...state, chatHistory: updated });
     }
 
     case 'TRACK_QUERY':
-      return { ...state, usedQueries: [...state.usedQueries, action.payload] };
+      return persistActive({ ...state, usedQueries: [...state.usedQueries, action.payload] });
 
     case 'ADD_WIDGET':
       if (state.dashboardWidgets.some((w) => w.id === action.payload.id)) {
@@ -70,14 +160,44 @@ function chatReducer(state, action) {
       };
 
     case 'CLEAR_CHAT':
-      return {
+      return persistActive({
         ...state,
         chatHistory: [],
         usedQueries: [],
         activeAnalysis: null,
         analysisHistory: [],
         scrollToAnalysisId: null,
-      };
+      });
+
+    case 'NEW_CHAT': {
+      const persisted = persistActive(state);
+      const current = persisted.sessions.find((s) => s.id === persisted.activeSessionId);
+      if (isSessionEmpty(current)) return persisted;
+      const next = makeSession(persisted.activePersona);
+      return hydrateSession({ ...persisted, sessions: [next, ...persisted.sessions] }, next);
+    }
+
+    case 'SWITCH_SESSION': {
+      if (!action.payload || action.payload === state.activeSessionId) return state;
+      const persisted = persistActive(state);
+      const target = persisted.sessions.find((s) => s.id === action.payload);
+      if (!target) return persisted;
+      return hydrateSession(persisted, target);
+    }
+
+    case 'DELETE_SESSION': {
+      const persisted = persistActive(state);
+      const remaining = persisted.sessions.filter((s) => s.id !== action.payload);
+      if (remaining.length === 0) {
+        const next = makeSession(persisted.activePersona);
+        return hydrateSession({ ...persisted, sessions: [next] }, next);
+      }
+      if (persisted.activeSessionId !== action.payload) {
+        return { ...persisted, sessions: remaining };
+      }
+      const latest = [...remaining].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+      return hydrateSession({ ...persisted, sessions: remaining }, latest);
+    }
 
     case 'SET_ANALYSIS':
       return { ...state, activeAnalysis: action.payload };
@@ -113,7 +233,7 @@ function chatReducer(state, action) {
       } else {
         analysisHistory = [...state.analysisHistory, item];
       }
-      return { ...state, analysisHistory };
+      return persistActive({ ...state, analysisHistory });
     }
 
     case 'SCROLL_TO_ANALYSIS':
@@ -125,6 +245,21 @@ function chatReducer(state, action) {
           state.analysisHistory.find((a) => a.id === action.payload) ||
           state.activeAnalysis,
       };
+
+    case 'LOGIN': {
+      const persona = action.payload;
+      const persisted = persistActive({ ...state, isAuthenticated: true, activePersona: persona });
+      const mine = persisted.sessions.filter((s) => s.persona === persona);
+      if (mine.length) {
+        const latest = [...mine].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+        return hydrateSession(persisted, latest);
+      }
+      const next = makeSession(persona);
+      return hydrateSession({ ...persisted, sessions: [next, ...persisted.sessions] }, next);
+    }
+
+    case 'LOGOUT':
+      return { ...persistActive(state), isAuthenticated: false, activeAnalysis: null };
 
     default:
       return state;
@@ -146,6 +281,17 @@ export function ChatProvider({ children }) {
   const addReport = useCallback((r) => dispatch({ type: 'ADD_REPORT', payload: r }), []);
   const removeReport = useCallback((id) => dispatch({ type: 'REMOVE_REPORT', payload: id }), []);
   const clearChat = useCallback(() => dispatch({ type: 'CLEAR_CHAT' }), []);
+  const newChat = useCallback(() => dispatch({ type: 'NEW_CHAT' }), []);
+  const switchSession = useCallback(
+    (id) => dispatch({ type: 'SWITCH_SESSION', payload: id }),
+    []
+  );
+  const deleteSession = useCallback(
+    (id) => dispatch({ type: 'DELETE_SESSION', payload: id }),
+    []
+  );
+  const logout = useCallback(() => dispatch({ type: 'LOGOUT' }), []);
+  const login = useCallback((persona) => dispatch({ type: 'LOGIN', payload: persona }), []);
   const setAnalysis = useCallback((a) => dispatch({ type: 'SET_ANALYSIS', payload: a }), []);
   const updateAnalysis = useCallback((u) => dispatch({ type: 'UPDATE_ANALYSIS', payload: u }), []);
   const clearAnalysis = useCallback(() => dispatch({ type: 'CLEAR_ANALYSIS' }), []);
@@ -170,6 +316,11 @@ export function ChatProvider({ children }) {
     addReport,
     removeReport,
     clearChat,
+    newChat,
+    switchSession,
+    deleteSession,
+    login,
+    logout,
     setAnalysis,
     updateAnalysis,
     clearAnalysis,
@@ -177,6 +328,17 @@ export function ChatProvider({ children }) {
     upsertAnalysisHistory,
     scrollToAnalysis,
   };
+
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      sessionStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({ authenticated: true, persona: state.activePersona })
+      );
+    } else {
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  }, [state.isAuthenticated, state.activePersona]);
 
   return React.createElement(ChatContext.Provider, { value }, children);
 }

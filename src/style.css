@@ -55,6 +55,207 @@ body {
   overflow: hidden;
 }
 
+/* Login */
+.login-page {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.08), transparent 42%),
+    radial-gradient(circle at bottom right, rgba(22, 101, 52, 0.08), transparent 40%),
+    var(--bg);
+  overflow: auto;
+}
+
+.login-card {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-hover);
+  padding: 28px 28px 22px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.login-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--text-main);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.login-brand h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.login-brand p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.login-accounts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.login-account {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-account:hover,
+.login-account.active {
+  background: var(--surface-hover);
+}
+
+.login-account-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.login-account-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.login-account-copy strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-account-copy span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.login-account-copy code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.login-form input {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-main);
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+}
+
+.login-error {
+  font-size: 12px;
+  color: var(--red);
+  background: var(--red-light);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.login-submit {
+  appearance: none;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: var(--blue);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-submit:hover {
+  filter: brightness(0.95);
+}
+
+.login-hint {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.ac-signout-btn {
+  appearance: none;
+  width: calc(100% - 8px);
+  margin: 8px 4px 4px;
+  height: 36px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: var(--red);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ac-signout-btn:hover {
+  background: #fee2e2;
+}
+
 /* App & Global Sidebar */
 #app {
   width: 100vw;
@@ -90,6 +291,45 @@ body {
   width: 100%;
   align-items: center;
   padding: 0 8px;
+  flex: 1;
+}
+
+.sidebar-account {
+  position: relative;
+  margin-top: auto;
+  padding: 8px 0 4px;
+}
+
+.sidebar-account-btn {
+  appearance: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  line-height: 1;
+}
+
+.sidebar-account-btn:hover,
+.sidebar-account-btn.active {
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+}
+
+.sidebar-account-dropdown {
+  position: absolute;
+  left: calc(100% + 10px);
+  bottom: 0;
+  width: 260px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-hover);
+  z-index: 60;
 }
 
 .nav-item {
@@ -1839,7 +2079,7 @@ input:focus-visible,
 }
 
 /* ============================================================
-   Chat Header — Persona Selector
+   Chat Header — Profiles, New chat, History
    ============================================================ */
 
 .ac-header {
@@ -1875,61 +2115,353 @@ input:focus-visible,
   font-weight: 500;
 }
 
-.ac-persona-selector {
+.ac-toolbar {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
-.ac-persona-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.ac-toolbar-btn {
+  appearance: none;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 7px 4px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  color: var(--text-main);
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted);
-  min-width: 0;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.ac-persona-btn:hover:not(:disabled) {
+.ac-toolbar-btn:hover:not(:disabled),
+.ac-toolbar-btn.active {
   border-color: var(--border-light);
   background: var(--surface-hover);
 }
 
-.ac-persona-btn:disabled {
+.ac-toolbar-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.ac-persona-btn.active {
+.ac-history-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 10px;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.ac-persona-icon {
-  font-size: 14px;
+.ac-profile-menu,
+.ac-history-menu {
+  position: relative;
+}
+
+.ac-history-menu {
+  margin-left: auto;
+}
+
+.ac-profile-btn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 200px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ac-profile-btn:hover:not(:disabled),
+.ac-profile-btn.active {
+  border-color: var(--border-light);
+  background: var(--surface-hover);
+}
+
+.ac-profile-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ac-profile-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  flex-shrink: 0;
   line-height: 1;
 }
 
-.ac-persona-label {
+.ac-profile-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.ac-profile-name {
+  font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  max-width: 110px;
 }
 
-.ac-persona-desc {
-  font-size: 11px;
+.ac-profile-role {
+  font-size: 10px;
   color: var(--text-subtle);
-  margin-top: 8px;
+  font-weight: 500;
+}
+
+.ac-profile-caret {
+  font-size: 10px;
+  color: var(--text-subtle);
+  margin-left: 2px;
+}
+
+.ac-profile-dropdown,
+.ac-history-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-hover);
+  z-index: 40;
+}
+
+.ac-profile-dropdown {
+  top: auto;
+  bottom: calc(100% + 6px);
+  width: min(300px, 72vw);
+  padding: 8px;
+}
+
+.ac-history-dropdown {
+  width: min(320px, 78vw);
+  padding: 6px;
+}
+
+.ac-profile-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.ac-profile-item:hover,
+.ac-profile-item.active {
+  background: var(--surface-hover);
+}
+
+.ac-profile-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ac-profile-item-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.ac-profile-item-text span {
+  font-size: 11px;
+  color: var(--text-muted);
   line-height: 1.35;
+}
+
+.ac-profile-check {
+  margin-left: auto;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.ac-profile-dropdown .ac-info-section {
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.ac-profile-dropdown .ac-info-hint {
+  margin: 8px 8px 4px;
+}
+
+.ac-history-dropdown .ac-info-heading {
+  padding: 6px 8px 8px;
+}
+
+.ac-history-empty {
+  font-size: 12px;
+  color: var(--text-subtle);
+  padding: 16px 10px;
+  text-align: center;
+}
+
+.ac-history-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 10px;
+}
+
+.ac-history-row:hover,
+.ac-history-row.active,
+.ac-history-row.menu-open {
+  background: var(--surface-hover);
+}
+
+.ac-history-item {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px 8px 8px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.ac-history-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ac-history-item-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.ac-history-item-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.ac-history-item-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ac-history-item-sub {
+  font-size: 10px;
+  color: var(--text-subtle);
+}
+
+.ac-history-more {
+  appearance: none;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.ac-history-row:hover .ac-history-more,
+.ac-history-more.active,
+.ac-history-row.menu-open .ac-history-more {
+  opacity: 1;
+}
+
+.ac-history-more:hover,
+.ac-history-more.active {
+  background: var(--bg);
+  color: var(--text-main);
+}
+
+.ac-history-flyout {
+  position: absolute;
+  top: 8px;
+  right: 34px;
+  min-width: 132px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-hover);
+  z-index: 50;
+}
+
+.ac-history-flyout-item {
+  appearance: none;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.ac-history-flyout-item.danger {
+  color: var(--red);
+}
+
+.ac-history-flyout-item:hover {
+  background: var(--surface-hover);
+}
+
+.ac-history-flyout-item.danger:hover {
+  background: #fef2f2;
 }
 
 .ac-view-hint {
@@ -4539,8 +5071,9 @@ input:focus-visible,
     border-bottom: 1px solid var(--border);
   }
 
-  .ac-persona-label {
-    font-size: 9px;
+  .ac-toolbar-btn {
+    font-size: 11px;
+    padding: 0 10px;
   }
 
   .predictive-questions {

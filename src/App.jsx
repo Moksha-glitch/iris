@@ -7,6 +7,7 @@ import AgenticChat from './components/AgenticChat';
 import AnalysisPanel from './components/AnalysisPanel';
 import ReportsTable from './components/ReportsTable';
 import Toast from './components/Toast';
+import LoginPage from './components/LoginPage';
 import { ChatProvider, useChatContext } from './agentic';
 
 function AppShell() {
@@ -80,7 +81,6 @@ function AppShell() {
         <aside className="sv-left iris-pane" aria-label="Vision AI assistant">
           <AgenticChat
             embedded
-            activeView={activeView}
             onToast={showToast}
             onOpenAnalysis={goToCommand}
             askRef={askRef}
@@ -147,7 +147,13 @@ function AppShell() {
 export default function App() {
   return (
     <ChatProvider>
-      <AppShell />
+      <AuthGate />
     </ChatProvider>
   );
+}
+
+function AuthGate() {
+  const { isAuthenticated } = useChatContext();
+  if (!isAuthenticated) return <LoginPage />;
+  return <AppShell />;
 }

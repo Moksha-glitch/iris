@@ -11,6 +11,6 @@
 export { ChatProvider, useChatContext, buildReportFromInsight } from './chatStore';
 export { mockAgentResponse, getWorkflowSteps } from './mockAgentService';
 export { getPredictiveQuestions, getAllQuestions } from './predictiveQuestions';
-export { PERSONAS, getPersonaConfig } from './personas';
+export { PERSONAS, getPersonaConfig, matchPersonaAccount } from './personas';
 export { preloadedReports, reportContext } from './preloadedReports';
 export { shapeAgentResponse, inferSource, buildIntent } from './responseShape';

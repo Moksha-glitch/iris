@@ -5,45 +5,28 @@ import {
   getWorkflowSteps,
   getPredictiveQuestions,
   getPersonaConfig,
-  PERSONAS,
-  reportContext,
 } from '../agentic';
 import PredictiveQuestions from './PredictiveQuestions';
 import StructuredAnswer from './StructuredAnswer';
 
-const { fleetSummary, woSummary } = reportContext;
-
-const VIEW_HINTS = {
-  command: 'Summary in chat · full Table / Chart / Analysis in detail',
-  table: 'Directory stays available from the sidebar',
-  reports: 'Tabular reports pinned from analysis insights',
-};
-
-const INFO_BITS = [
-  { label: 'Trucks', value: () => fleetSummary.totalTrucks.toLocaleString() },
-  { label: 'Providers', value: () => String(fleetSummary.totalProviders) },
-  { label: 'Open WOs', value: () => String(woSummary.totalWOs) },
-  { label: 'RFID', value: () => `${fleetSummary.rfidCoverage}%` },
-  { label: 'Unequipped', value: () => String(fleetSummary.trucksWithoutRFID) },
-  { label: 'Overdue WOs', value: () => String(woSummary.overdueWOs) },
-];
-
 export default function AgenticChat({
   embedded = false,
-  activeView = 'command',
   onToast,
   onOpenAnalysis,
   askRef,
 }) {
   const {
     activePersona,
-    setPersona,
     chatHistory,
     addMessage,
     updateLastMessage,
     trackQuery,
     usedQueries,
-    clearChat,
+    sessions,
+    activeSessionId,
+    newChat,
+    switchSession,
+    deleteSession,
     setAnalysis,
     updateAnalysis,
     clearAnalysis,
@@ -56,16 +39,19 @@ export default function AgenticChat({
 
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [confirmClear, setConfirmClear] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [itemMenuId, setItemMenuId] = useState(null);
   const historyRef = useRef(null);
   const inputRef = useRef(null);
-  const infoRef = useRef(null);
-  const infoBtnRef = useRef(null);
+  const historyMenuRef = useRef(null);
+  const historyBtnRef = useRef(null);
 
-  const questionHistory = useMemo(
-    () => analysisHistory.filter((a) => a.query && !a.isStreaming),
-    [analysisHistory]
+  const sortedSessions = useMemo(
+    () =>
+      [...sessions]
+        .filter((s) => s.persona === activePersona)
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0) || (b.createdAt || 0) - (a.createdAt || 0)),
+    [sessions, activePersona]
   );
 
   useEffect(() => {
@@ -75,15 +61,18 @@ export default function AgenticChat({
   }, [chatHistory, isProcessing]);
 
   useEffect(() => {
-    if (!infoOpen) return undefined;
+    if (!historyOpen && !itemMenuId) return undefined;
     const onDoc = (e) => {
-      if (infoRef.current && !infoRef.current.contains(e.target)) setInfoOpen(false);
+      if (historyMenuRef.current && !historyMenuRef.current.contains(e.target)) {
+        setHistoryOpen(false);
+        setItemMenuId(null);
+      }
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setInfoOpen(false);
-        infoBtnRef.current?.focus();
-      }
+      if (e.key !== 'Escape') return;
+      setHistoryOpen(false);
+      setItemMenuId(null);
+      if (historyOpen) historyBtnRef.current?.focus();
     };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -91,7 +80,7 @@ export default function AgenticChat({
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [infoOpen]);
+  }, [historyOpen, itemMenuId]);
 
   const predictiveQs = getPredictiveQuestions(activePersona, usedQueries);
   const currentPersona = getPersonaConfig(activePersona);
@@ -117,7 +106,6 @@ export default function AgenticChat({
       const analysisId = `analysis-${Date.now()}`;
 
       setInputValue('');
-      setConfirmClear(false);
       onOpenAnalysis?.();
       trackQuery(trimmed);
       addMessage({
@@ -237,16 +225,32 @@ export default function AgenticChat({
     };
   }, [askRef, runQuery]);
 
-  const handleClear = () => {
-    if (!confirmClear) {
-      setConfirmClear(true);
+  const handleNewChat = () => {
+    if (isProcessing) return;
+    setHistoryOpen(false);
+    setItemMenuId(null);
+    newChat();
+    clearAnalysis();
+    onToast?.('New chat');
+    inputRef.current?.focus();
+  };
+
+  const handleSwitchSession = (id) => {
+    if (isProcessing || id === activeSessionId) {
+      setHistoryOpen(false);
       return;
     }
-    clearChat();
-    clearAnalysis();
-    setConfirmClear(false);
-    onToast?.('Conversation cleared');
+    switchSession(id);
+    setHistoryOpen(false);
+    setItemMenuId(null);
+    onOpenAnalysis?.();
     inputRef.current?.focus();
+  };
+
+  const handleDeleteSession = (id) => {
+    deleteSession(id);
+    setItemMenuId(null);
+    onToast?.('Chat deleted');
   };
 
   return (
@@ -258,123 +262,118 @@ export default function AgenticChat({
               <span className="ac-logo">Vision AI</span>
               <span className="ac-subtitle">Summary in chat · Detail in dashboard</span>
             </div>
-            <div className="ac-header-actions">
-              <div className="ac-info-menu" ref={infoRef}>
-                <button
-                  ref={infoBtnRef}
-                  type="button"
-                  className={`ac-icon-btn ${infoOpen ? 'active' : ''}`}
-                  onClick={() => setInfoOpen((v) => !v)}
-                  aria-expanded={infoOpen}
-                  aria-controls="ac-info-panel"
-                  aria-label="Key metrics and context"
-                >
-                  Info ▾
-                </button>
-                {infoOpen && (
-                  <div id="ac-info-panel" className="ac-info-dropdown" role="region" aria-label="Context">
-                    <div className="ac-info-section">
-                      <div className="ac-info-heading">Persona</div>
-                      <div className="ac-info-persona">
-                        <span aria-hidden>{currentPersona.icon}</span>
-                        <div>
-                          <strong>{currentPersona.shortLabel}</strong>
-                          <p>{currentPersona.desc}</p>
+          </div>
+
+          <div className="ac-toolbar">
+            <button
+              type="button"
+              className="ac-toolbar-btn"
+              onClick={handleNewChat}
+              disabled={isProcessing}
+              aria-label="New chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New chat
+            </button>
+
+            <div className="ac-history-menu" ref={historyMenuRef}>
+              <button
+                ref={historyBtnRef}
+                type="button"
+                className={`ac-toolbar-btn ${historyOpen ? 'active' : ''}`}
+                onClick={() => {
+                  setItemMenuId(null);
+                  setHistoryOpen((v) => !v);
+                }}
+                aria-expanded={historyOpen}
+                aria-controls="ac-history-panel"
+                aria-label="Chat history"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+                History
+                <span className="ac-history-count">{sortedSessions.length}</span>
+              </button>
+              {historyOpen && (
+                <div id="ac-history-panel" className="ac-history-dropdown" role="menu" aria-label="All chats">
+                  <div className="ac-info-heading">Your chats</div>
+                  {sortedSessions.length === 0 ? (
+                    <p className="ac-history-empty">No chats yet</p>
+                  ) : (
+                    sortedSessions.map((session) => {
+                      const persona = getPersonaConfig(session.persona);
+                      const active = session.id === activeSessionId;
+                      return (
+                        <div
+                          key={session.id}
+                          className={`ac-history-row ${active ? 'active' : ''} ${
+                            itemMenuId === session.id ? 'menu-open' : ''
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="ac-history-item"
+                            onClick={() => handleSwitchSession(session.id)}
+                            title={session.title}
+                            disabled={isProcessing}
+                          >
+                            <span
+                              className="ac-history-item-icon"
+                              style={{ color: persona.color }}
+                              aria-hidden
+                            >
+                              {persona.icon}
+                            </span>
+                            <span className="ac-history-item-copy">
+                              <span className="ac-history-item-title">{session.title}</span>
+                              <span className="ac-history-item-sub">{persona.shortLabel}</span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`ac-history-more ${itemMenuId === session.id ? 'active' : ''}`}
+                            aria-label={`More options for ${session.title}`}
+                            aria-haspopup="menu"
+                            aria-expanded={itemMenuId === session.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemMenuId((id) => (id === session.id ? null : session.id));
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="12" cy="5" r="1.7" />
+                              <circle cx="12" cy="12" r="1.7" />
+                              <circle cx="12" cy="19" r="1.7" />
+                            </svg>
+                          </button>
+                          {itemMenuId === session.id && (
+                            <div className="ac-history-flyout" role="menu">
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="ac-history-flyout-item danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(session.id);
+                                }}
+                              >
+                                Delete chat
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    </div>
-                    <div className="ac-info-section">
-                      <div className="ac-info-heading">Live snapshot</div>
-                      <ul className="ac-info-list">
-                        {INFO_BITS.map((bit) => (
-                          <li key={bit.label}>
-                            <span>{bit.label}</span>
-                            <strong>{bit.value()}</strong>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    {embedded && (
-                      <div className="ac-info-section">
-                        <div className="ac-info-heading">This view</div>
-                        <p className="ac-info-hint">
-                          {VIEW_HINTS[activeView] || VIEW_HINTS.command}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="ac-persona-selector" role="group" aria-label="Analysis persona">
-            {Object.entries(PERSONAS).map(([key, cfg]) => {
-              const selected = activePersona === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={selected}
-                  className={`ac-persona-btn ${selected ? 'active' : ''}`}
-                  disabled={isProcessing}
-                  onClick={() => {
-                    if (key !== activePersona) {
-                      setPersona(key);
-                      onToast?.(`Switched to ${cfg.shortLabel}`);
-                    }
-                  }}
-                  style={
-                    selected
-                      ? { borderColor: cfg.color, color: cfg.color, background: `${cfg.color}0F` }
-                      : undefined
-                  }
-                  title={cfg.desc}
-                >
-                  <span className="ac-persona-icon" aria-hidden>
-                    {cfg.icon}
-                  </span>
-                  <span className="ac-persona-label">{cfg.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {(questionHistory.length > 0 || chatHistory.length > 0) && (
-            <div className="ac-chat-history" aria-label="Chat history">
-              <div className="ac-chat-history-head">
-                <div className="ac-chat-history-label">History</div>
-                {chatHistory.length > 0 && (
-                  <button
-                    type="button"
-                    className={`ac-icon-btn ${confirmClear ? 'danger' : ''}`}
-                    onClick={handleClear}
-                    onBlur={() => setConfirmClear(false)}
-                    aria-label={confirmClear ? 'Confirm clear conversation' : 'Clear conversation'}
-                  >
-                    {confirmClear ? 'Confirm?' : 'Clear'}
-                  </button>
-                )}
-              </div>
-              {questionHistory.length > 0 && (
-                <div className="ac-chat-history-list">
-                  {questionHistory.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`ac-history-chip ${
-                        activeAnalysis?.id === item.id ? 'active' : ''
-                      }`}
-                      onClick={() => openHistoryItem(item.id)}
-                      title={item.query}
-                    >
-                      {item.query}
-                    </button>
-                  ))}
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </div>
         </header>
 
         <div
@@ -387,7 +386,7 @@ export default function AgenticChat({
               <div className="ac-welcome-icon" aria-hidden>
                 {currentPersona.icon}
               </div>
-              <h2>Service Provider ops desk</h2>
+              <h2>{currentPersona.shortLabel} desk</h2>
               <p>
                 Ask a question for a short summary. Detail replaces Command Center. Use history to
                 jump back; pin insights to dashboard or reports.
@@ -458,7 +457,7 @@ export default function AgenticChat({
                       </div>
                     ) : (
                       <div className="ac-msg-text ac-msg-pending">
-                        Working the Service Provider lens… detail is opening in the dashboard.
+                        Working the {currentPersona.shortLabel} lens… detail is opening in the dashboard.
                       </div>
                     )}
                   </div>
