@@ -305,17 +305,6 @@ export default function AgenticChat({
                   </div>
                 )}
               </div>
-              {chatHistory.length > 0 && (
-                <button
-                  type="button"
-                  className={`ac-icon-btn ${confirmClear ? 'danger' : ''}`}
-                  onClick={handleClear}
-                  onBlur={() => setConfirmClear(false)}
-                  aria-label={confirmClear ? 'Confirm clear conversation' : 'Clear conversation'}
-                >
-                  {confirmClear ? 'Confirm?' : 'Clear'}
-                </button>
-              )}
             </div>
           </div>
 
@@ -351,29 +340,48 @@ export default function AgenticChat({
             })}
           </div>
 
-          {questionHistory.length > 0 && (
+          {(questionHistory.length > 0 || chatHistory.length > 0) && (
             <div className="ac-chat-history" aria-label="Chat history">
-              <div className="ac-chat-history-label">History</div>
-              <div className="ac-chat-history-list">
-                {questionHistory.map((item) => (
+              <div className="ac-chat-history-head">
+                <div className="ac-chat-history-label">History</div>
+                {chatHistory.length > 0 && (
                   <button
-                    key={item.id}
                     type="button"
-                    className={`ac-history-chip ${
-                      activeAnalysis?.id === item.id ? 'active' : ''
-                    }`}
-                    onClick={() => openHistoryItem(item.id)}
-                    title={item.query}
+                    className={`ac-icon-btn ${confirmClear ? 'danger' : ''}`}
+                    onClick={handleClear}
+                    onBlur={() => setConfirmClear(false)}
+                    aria-label={confirmClear ? 'Confirm clear conversation' : 'Clear conversation'}
                   >
-                    {item.query}
+                    {confirmClear ? 'Confirm?' : 'Clear'}
                   </button>
-                ))}
+                )}
               </div>
+              {questionHistory.length > 0 && (
+                <div className="ac-chat-history-list">
+                  {questionHistory.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`ac-history-chip ${
+                        activeAnalysis?.id === item.id ? 'active' : ''
+                      }`}
+                      onClick={() => openHistoryItem(item.id)}
+                      title={item.query}
+                    >
+                      {item.query}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </header>
 
-        <div className="ac-messages" ref={historyRef} aria-live="polite">
+        <div
+          className={`ac-messages ${chatHistory.length === 0 ? 'is-empty' : ''}`}
+          ref={historyRef}
+          aria-live="polite"
+        >
           {chatHistory.length === 0 && (
             <div className={`ac-welcome ${embedded ? 'compact' : ''}`}>
               <div className="ac-welcome-icon" aria-hidden>

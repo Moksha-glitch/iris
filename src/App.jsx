@@ -29,7 +29,6 @@ function AppShell() {
   }, [highlightId]);
 
   const openInspector = useCallback((id) => {
-    setActiveView('table');
     setInspectedNodeId(id);
     setHighlightId(id);
   }, []);
