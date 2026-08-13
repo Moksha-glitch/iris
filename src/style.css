@@ -1954,9 +1954,7 @@ input:focus-visible,
   flex-direction: column;
   gap: 14px;
   scroll-behavior: smooth;
-  background:
-    radial-gradient(circle at top left, rgba(29, 78, 216, 0.04), transparent 40%),
-    var(--bg);
+  background: var(--surface);
 }
 
 .ac-messages.is-empty {
