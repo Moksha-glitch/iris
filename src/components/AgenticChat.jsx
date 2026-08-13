@@ -260,7 +260,7 @@ export default function AgenticChat({
           <div className="ac-brand">
             <div className="ac-brand-text">
               <span className="ac-logo">Vision AI</span>
-              <span className="ac-subtitle">Summary in chat · Detail in dashboard</span>
+              <span className="ac-subtitle">Ask anything about the network</span>
             </div>
           </div>
 
@@ -386,10 +386,10 @@ export default function AgenticChat({
               <div className="ac-welcome-icon" aria-hidden>
                 {currentPersona.icon}
               </div>
-              <h2>{currentPersona.shortLabel} desk</h2>
+              <h2>How can I help?</h2>
               <p>
-                Ask a question for a short summary. Detail replaces Command Center. Use history to
-                jump back; pin insights to dashboard or reports.
+                Ask as {currentPersona.shortLabel}. Answers summarize here; full analysis opens
+                beside you.
               </p>
             </div>
           )}
@@ -457,7 +457,7 @@ export default function AgenticChat({
                       </div>
                     ) : (
                       <div className="ac-msg-text ac-msg-pending">
-                        Working the {currentPersona.shortLabel} lens… detail is opening in the dashboard.
+                        Thinking…
                       </div>
                     )}
                   </div>
@@ -468,7 +468,7 @@ export default function AgenticChat({
 
           {isProcessing && chatHistory[chatHistory.length - 1]?.text === '' && (
             <div className="ac-typing" aria-live="polite">
-              Streaming summary · detail pane is live
+              Thinking…
             </div>
           )}
         </div>
@@ -499,7 +499,6 @@ export default function AgenticChat({
               className="ac-send-btn"
               onClick={() => runQuery(inputValue)}
               disabled={isProcessing || !inputValue.trim()}
-              style={{ background: currentPersona.color }}
               aria-label="Send message"
             >
               {isProcessing ? (

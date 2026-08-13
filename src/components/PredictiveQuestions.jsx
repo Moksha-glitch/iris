@@ -5,8 +5,8 @@ export default function PredictiveQuestions({ questions, onSelect, disabled }) {
 
   return (
     <div className="predictive-questions">
-      <div className="pq-label" id="pq-label">
-        Suggested
+  <div className="pq-label" id="pq-label">
+        Suggestions
       </div>
       <div className="pq-pills" role="group" aria-labelledby="pq-label">
         {questions.map((q, i) => (

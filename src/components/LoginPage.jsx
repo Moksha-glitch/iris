@@ -31,8 +31,8 @@ export default function LoginPage() {
         <div className="login-brand">
           <span className="login-mark">RP</span>
           <div>
-            <h1>Vision AI</h1>
-            <p>Sign in with a persona account</p>
+            <h1>Welcome back</h1>
+            <p>Sign in to Vision AI</p>
           </div>
         </div>
 
@@ -44,11 +44,6 @@ export default function LoginPage() {
               role="listitem"
               className={`login-account ${selectedId === cfg.id ? 'active' : ''}`}
               onClick={() => fillAccount(cfg)}
-              style={
-                selectedId === cfg.id
-                  ? { borderColor: cfg.color, boxShadow: `0 0 0 3px ${cfg.color}22` }
-                  : undefined
-              }
             >
               <span
                 className="login-account-avatar"
@@ -60,9 +55,6 @@ export default function LoginPage() {
               <span className="login-account-copy">
                 <strong>{cfg.shortLabel}</strong>
                 <span>{cfg.role}</span>
-                <code>
-                  {cfg.username} / {cfg.password}
-                </code>
               </span>
             </button>
           ))}
@@ -105,7 +97,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="login-hint">Username and password are the same as the persona name.</p>
+        <p className="login-hint">Username and password are the persona name.</p>
       </div>
     </div>
   );
